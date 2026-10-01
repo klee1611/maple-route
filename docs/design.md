@@ -44,6 +44,13 @@ records where v1 narrows or adjusts it, and why.
 | D5 | Python via **pyenv 3.13.12 + uv** (`pyproject.toml`, `uv.lock`), not `requirements.txt`. | requirements.txt | User's tooling; Vercel supports pyproject + uv.lock and Python 3.13. |
 | D6 | **SSE streaming** on Vercel (no polling fallback). | Polling | Vercel docs: Python functions stream by default; Hobby max 300 s. |
 | D7 | Retrieved KB context per LLM call kept ≤ ~4–5K tokens; read 1–3 entries per call. | Read freely | Groq free tier: 8K TPM per model, and a single request over the TPM limit fails. |
+| D8 | Policy agent is a fixed pipeline (select ≤3 entries + ≤2 archived → read → extract), not a free ReAct loop. A finding's URL must appear in its entry or it is dropped. | ReAct tool loop (Phase 2 baseline) | Predictable token use; blocks invented URLs whatever the real citation format is. The baseline produced broken `【2†L1】` citations and uncited steps. |
+| D9 | Structured output via Groq `json_schema`; fields the model tends to skip are **required** (`archived_paths`, `contradicted_by`, `matches_older`, unit `kind`). Code, not the model, decides callouts and drops uncited `fact` units. | Optional fields + prompt instructions | Optional fields were left empty at low reasoning effort (callout 0/3); required fields → 3/3. |
+| D10 | Models: orchestrator `qwen/qwen3.8-27b`; policy + synthesizer `gpt-oss-120b`; verifier `gpt-oss-20b`; `reasoning_effort=low` for gpt-oss. | qwen for verifier/synthesizer | qwen produced malformed JSON (verifier) and dropped citation ids (synthesizer). Low effort cut output tokens ~60%. |
+| D11 | 429: wait max(header, message) + 1.5 s once (≤ 20 s), then `upstream_busy`; daily limits → `quota_exhausted`. | Exact retry-after | Groq's TPM window is rolling; exact waits failed. |
+| D12 | One MCP session per batch of KB calls, calls in sequence. | One session per tool call, parallel | Parallel session setup timed out; fewer handshakes. |
+
+**Measured capacity (mock KB):** ~6–7K tokens per answer on `gpt-oss-120b`, 6–20 s per answer. The free tier therefore sustains roughly **one uncached answer per minute** for the whole app; cache hits are free. Real KB entries may be longer — re-measure after the switch.
 
 ## Verified platform facts (from docs, 2026-10-01)
 
