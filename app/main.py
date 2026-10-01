@@ -3,10 +3,12 @@
 import asyncio
 import json
 import logging
+import os
 import time
 from collections.abc import AsyncIterator
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langchain_core.tracers.langchain import wait_for_all_tracers
 from pydantic import BaseModel
@@ -21,6 +23,12 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("maple_route")
 
 app = FastAPI(title="Maple Route API", docs_url=None, redoc_url=None)
+
+if not os.getenv("VERCEL"):
+    # Local development only: the Next.js dev server runs on another port. In production
+    # the frontend and API share one origin, so no CORS is needed.
+    app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["GET", "POST"],
+                       allow_headers=["content-type"])
 
 MAX_QUESTION_CHARS = 1000
 

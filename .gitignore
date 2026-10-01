@@ -19,3 +19,6 @@ frontend/out/
 .vercel/
 
 .DS_Store
+
+# browser test artifacts
+.playwright-mcp/
