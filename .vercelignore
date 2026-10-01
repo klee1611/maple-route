@@ -1,0 +1,12 @@
+# Not needed at runtime (keeps the Python bundle small)
+.venv/
+.playwright-mcp/
+data/
+eval/
+tests/
+docs/
+frontend/node_modules/
+frontend/.next/
+**/__pycache__/
+.env
+.env.*
