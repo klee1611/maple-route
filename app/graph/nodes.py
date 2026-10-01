@@ -6,6 +6,7 @@ import re
 from typing import Literal
 
 import groq
+from langgraph.config import get_stream_writer
 from langchain_core.exceptions import OutputParserException
 from pydantic import BaseModel, Field, ValidationError
 
@@ -22,7 +23,7 @@ DISCLAIMER = (
 )
 
 
-_MAX_BACKOFF_S = 20.0  # fits easily inside Vercel's 300 s; the UI shows the wait
+_MAX_WAIT_S = 30.0  # inside Vercel's 300 s; the timeline shows the wait
 
 
 def _is_daily_limit(err: groq.RateLimitError) -> bool:
@@ -31,11 +32,19 @@ def _is_daily_limit(err: groq.RateLimitError) -> bool:
 
 
 def _retry_after_s(err: groq.RateLimitError) -> float:
-    """Groq's TPM window is rolling: waiting exactly as long as it says often isn't enough."""
+    """Groq's per-minute window is rolling, and waiting exactly as long as it says
+    failed in testing; wait at least a few seconds more."""
     header = float(err.response.headers.get("retry-after") or 0)
     m = re.search(r"try again in ([\d.]+)(ms|s)", str(err))
     message = (float(m[1]) / (1000 if m[2] == "ms" else 1)) if m else 0
-    return max(header, message, 1.0) + 1.5
+    return max(header + 2, message + 2, 6.0)
+
+
+def _report_wait(seconds: float) -> None:
+    try:
+        get_stream_writer()({"type": "waiting", "seconds": round(seconds)})
+    except RuntimeError:
+        pass  # not running inside a streamed graph (tests, scripts)
 
 
 async def _invoke(role: Role, schema: type[BaseModel], messages: list, temperature: float = 0.0):
@@ -49,8 +58,9 @@ async def _invoke(role: Role, schema: type[BaseModel], messages: list, temperatu
         if _is_daily_limit(err):
             raise QuotaExhausted from err
         wait = _retry_after_s(err)
-        if wait > _MAX_BACKOFF_S:
+        if wait > _MAX_WAIT_S:
             raise UpstreamBusy from err
+        _report_wait(wait)
         await asyncio.sleep(wait)
     try:
         return await model.ainvoke(messages)
@@ -60,7 +70,7 @@ async def _invoke(role: Role, schema: type[BaseModel], messages: list, temperatu
 
 async def _structured[T: BaseModel](role: Role, prompt: str, schema: type[T], payload: dict) -> T:
     """System prompt stays fixed (prompt caching); everything per-request goes in the user turn."""
-    messages = [("system", prompts.load(prompt)), ("user", json.dumps(payload, ensure_ascii=False, indent=1))]
+    messages = [("system", prompts.load(prompt)), ("user", json.dumps(payload, ensure_ascii=False, separators=(",", ":")))]
     try:
         return await _invoke(role, schema, messages)
     except (groq.BadRequestError, ValidationError, OutputParserException):
