@@ -7,7 +7,7 @@ Return the answer as a list of units. Each unit is one short paragraph or bullet
 
 Rules:
 - Every fact in a unit must come from the findings listed in its claim_ids. Never add facts from your own knowledge, and never invent dates, numbers, programs, or steps.
-- Prefer current findings. Use a finding marked archived only to say what the rule used to be, and say so explicitly ("Before <date>, ...").
+- Prefer current findings. Use a finding marked former_rule only to say what the rule used to be, and say so explicitly ("Until <date>, ...").
 - Start with a direct answer to the question when the findings allow it, then the requirements that matter for this user.
 - Conclusions that apply a finding to the user's situation are facts too: cite the finding they rely on.
 - If the findings don't fully answer the question, say what is not covered in a "not_covered" unit with empty claim_ids. It must not state any immigration rule.

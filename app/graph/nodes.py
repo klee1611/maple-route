@@ -40,7 +40,9 @@ def _retry_after_s(err: groq.RateLimitError) -> float:
 
 async def _invoke(role: Role, schema: type[BaseModel], messages: list, temperature: float = 0.0):
     """Groq 429s (CLAUDE.md §7): wait out a per-minute limit once, then give up as upstream_busy."""
-    model = get_model(role, temperature=temperature).with_structured_output(schema, method="json_schema")
+    # strict = constrained decoding on gpt-oss (ignored for other models); every field must be required.
+    model = get_model(role, temperature=temperature).with_structured_output(
+        schema, method="json_schema", strict=True)
     try:
         return await model.ainvoke(messages)
     except groq.RateLimitError as err:
@@ -89,7 +91,7 @@ class OrchestratorOut(BaseModel):
 async def orchestrator(state: AgentState) -> dict:
     out = await _structured("orchestrator", "orchestrator", OrchestratorOut, {"question": state["question"]})
     premises = [
-        Claim(id=f"p{i}", text=t, source_id="", source_url=None, source_date=None,
+        Claim(id=f"p{i}", text=t, source_id="", source_title=None, source_url=None, source_date=None,
               status="unverified", note=None)
         for i, t in enumerate(out.premises, 1)
     ]
@@ -105,19 +107,21 @@ async def orchestrator(state: AgentState) -> dict:
 class SelectOut(BaseModel):
     knowledge_base: str
     paths: list[str] = Field(max_length=3)
-    archived_paths: list[str] = Field(max_length=2)  # required: forces an explicit "any older snapshots?"
+    change_paths: list[str] = Field(max_length=1)  # required: forces an explicit "what changed?" choice
 
 
 class Finding(BaseModel):
     text: str
     source_path: str
-    source_url: str | None = None
-    source_date: str | None = None
-    archived: bool = False
+    source_refs: list[int]      # the [n] citation numbers the entry puts on this statement
+    former_rule: bool           # describes a rule that no longer applies (closed, replaced, archived)
+
+
+FORMER_RULE = "former rule"
 
 
 class ExtractOut(BaseModel):
-    findings: list[Finding] = Field(default_factory=list)
+    findings: list[Finding]
 
 
 async def policy_agent(state: AgentState) -> dict:
@@ -129,11 +133,11 @@ async def policy_agent(state: AgentState) -> dict:
         "verifier_notes": state.get("verifier_notes", []), "already_read": list(sources),
     }
 
-    pick = await _structured("policy", "policy_select", SelectOut, {"outline": outline, **context})
+    pick = await _structured("policy_select", "policy_select", SelectOut, {"outline": outline, **context})
     known_kbs = kb.kb_ids(outline)
     kb_id = pick.knowledge_base if pick.knowledge_base in known_kbs else (known_kbs or [""])[0]
     # Only paths that literally appear in the outline: the model may not invent entries.
-    paths = list(dict.fromkeys(p for p in [*pick.paths, *pick.archived_paths] if p in outline and p not in sources))[:4]
+    paths = list(dict.fromkeys(p for p in [*pick.paths, *pick.change_paths] if p in outline and p not in sources))[:4]
     if paths:
         sources |= await kb.read(kb_id, paths)
     new_entries = {p: sources[p] for p in paths if p in sources}
@@ -143,14 +147,16 @@ async def policy_agent(state: AgentState) -> dict:
     out = await _structured("policy", "policy_extract", ExtractOut, {"entries": new_entries, **context})
     findings = list(state.get("policy_findings", []))
     for f in out.findings:
-        entry = sources.get(f.source_path)
-        # Provenance guard: the URL must be in the cited entry, or the finding is dropped.
-        if entry is None or not f.source_url or f.source_url not in entry:
+        # Provenance guard: the finding must point at a citation that exists in its entry's
+        # Sources list, or it is dropped. Title, URL, and date come from the entry, not the model.
+        cites = kb.citations(sources.get(f.source_path, ""))
+        cite = next((cites[n] for n in f.source_refs if n in cites), None)
+        if cite is None:
             continue
-        date = f.source_date if f.source_date and f.source_date in entry else None
         findings.append(Claim(
-            id=f"c{len(findings) + 1}", text=f.text, source_id=f.source_path, source_url=f.source_url,
-            source_date=date, status="unverified", note="archived source" if f.archived else None,
+            id=f"c{len(findings) + 1}", text=f.text, source_id=f.source_path, source_title=cite["title"],
+            source_url=cite["url"], source_date=cite["date"], status="unverified",
+            note=FORMER_RULE if f.former_rule else None,
         ))
     return {"sources": sources, "policy_findings": findings}
 
@@ -177,7 +183,7 @@ async def synthesizer(state: AgentState) -> dict:
     payload = {
         "question": state["question"], "profile": state.get("profile", {}),
         "findings": [{"id": c["id"], "text": c["text"],
-                      **({"archived": True} if c["note"] == "archived source" else {})} for c in findings],
+                      **({"former_rule": True} if c["note"] == FORMER_RULE else {})} for c in findings],
     }
     valid = {c["id"] for c in findings}
     for _ in range(2):
@@ -208,7 +214,7 @@ class PremiseVerdict(BaseModel):
     status: Literal["supported", "contradicted", "not_covered"]
     note: str
     contradicted_by: list[str]  # ids of current findings that say otherwise
-    matches_older: list[str]    # ids of archived findings that state the same older rule
+    matches_older: list[str]    # ids of former-rule findings that state the same rule
 
 
 class VerifyOut(BaseModel):
@@ -237,11 +243,14 @@ async def verifier(state: AgentState) -> dict:
         sources = sources | await kb.read(known[0], missing)
 
     out = await _structured("verifier", "verifier", VerifyOut, {
-        "sources": sources,
+        # Only the entries the draft cites: premises are judged against the findings themselves.
+        "sources": {p: sources[p] for p in cited if p in sources},
         "findings": [{"id": c["id"], "text": c["text"], "source_path": c["source_id"],
-                      **({"archived": True} if c["note"] == "archived source" else {})} for c in used],
+                      **({"former_rule": True} if c["note"] == FORMER_RULE else {})} for c in used],
         # Findings not in the draft, so an outdated claim can point at its current replacement.
-        "other_findings": [{"id": c["id"], "text": c["text"]} for c in by_id.values() if c["id"] not in used_ids],
+        "other_findings": [{"id": c["id"], "text": c["text"],
+                            **({"former_rule": True} if c["note"] == FORMER_RULE else {})}
+                           for c in by_id.values() if c["id"] not in used_ids],
         "premises": [{"id": p["id"], "text": p["text"]} for p in premises],
     })
 
@@ -261,7 +270,7 @@ async def verifier(state: AgentState) -> dict:
         checked.append(c := Claim(**{**premise, "status": status, "note": v.note}))
         current = first(v.contradicted_by)
         if v.status == "contradicted" and current:
-            # Show the archived source that said the same thing, else "what you read".
+            # Show the source for the former rule when there is one, else "what you read".
             old = Claim(**{**older, "status": "outdated", "note": v.note}) if older else c
             conflicts.append(Conflict(old=old, current=current))
 
@@ -306,7 +315,7 @@ def finalize(state: AgentState) -> dict:
     keep = {i for i, s in status.items() if s in ("supported", "conflict")}
     by_id = {c["id"]: c for c in state.get("policy_findings", [])}
 
-    numbers: dict[str, int] = {}  # source URL -> citation number
+    numbers: dict[str, int] = {}  # source (URL, else citation title) -> citation number
     sources: list[dict] = []
     lines: list[str] = []
     for unit in state.get("draft", []):
@@ -315,12 +324,13 @@ def finalize(state: AgentState) -> dict:
             continue  # every fact in this unit was rejected
         marks = []
         for i in ids:
-            url = by_id[i]["source_url"]
-            if url not in numbers:
-                numbers[url] = len(numbers) + 1
-                sources.append({"n": numbers[url], "url": url, "date": by_id[i]["source_date"],
-                                "entry": by_id[i]["source_id"]})
-            marks.append(f"[{numbers[url]}]")
+            c = by_id[i]
+            key = c["source_url"] or c["source_title"]
+            if key not in numbers:
+                numbers[key] = len(numbers) + 1
+                sources.append({"n": numbers[key], "title": c["source_title"], "url": c["source_url"],
+                                "date": c["source_date"], "entry": c["source_id"]})
+            marks.append(f"[{numbers[key]}]")
         lines.append(unit["text"] + (" " + "".join(dict.fromkeys(marks)) if marks else ""))
 
     if not lines:

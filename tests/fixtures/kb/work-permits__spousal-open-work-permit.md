@@ -7,5 +7,5 @@ Dependent children are no longer eligible for a family open work permit [2].
 These rules apply to applications received on or after 2025-01-21 [2].
 
 ## Sources
-[1] https://mock.invalid/ircc/sowp/eligibility — retrieved 2026-09-20
-[2] https://mock.invalid/ircc/news/2025-01-sowp-changes — published 2025-01-21
+1. MOCK ircc sowp eligibility | mock.invalid § MOCK ircc sowp eligibility › Updated: September 20, 2026 — Web · https://mock.invalid/ircc/sowp/eligibility
+2. MOCK ircc news 2025 01 sowp changes | mock.invalid § MOCK ircc news 2025 01 sowp changes › Updated: January 21, 2025 — Web · https://mock.invalid/ircc/news/2025-01-sowp-changes

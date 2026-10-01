@@ -8,10 +8,11 @@ from langchain_groq import ChatGroq
 
 from app.config import settings
 
-Role = Literal["orchestrator", "policy", "employer", "synthesizer", "verifier"]
+Role = Literal["orchestrator", "policy_select", "policy", "employer", "synthesizer", "verifier"]
 
 _ENV_BY_ROLE: dict[Role, str] = {
     "orchestrator": "MODEL_ORCHESTRATOR",
+    "policy_select": "MODEL_POLICY_SELECT",  # the policy agent's small entry-picking step
     "policy": "MODEL_POLICY",
     "employer": "MODEL_EMPLOYER",
     "synthesizer": "MODEL_SYNTHESIZER",
@@ -21,7 +22,7 @@ _ENV_BY_ROLE: dict[Role, str] = {
 
 def get_model(role: Role, *, temperature: float = 0.0, max_tokens: int = 2048) -> BaseChatModel:
     env_var = _ENV_BY_ROLE[role]
-    model = os.getenv(env_var)
+    model = os.getenv(env_var) or (os.getenv("MODEL_POLICY") if role == "policy_select" else None)
     if not model:
         raise RuntimeError(f"{env_var} is not set")
     return ChatGroq(

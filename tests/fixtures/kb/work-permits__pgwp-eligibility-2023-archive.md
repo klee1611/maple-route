@@ -5,4 +5,4 @@ Graduates of any eligible program at a designated learning institution may apply
 Applications must be submitted within 180 days of receiving final marks [1].
 
 ## Sources
-[1] https://mock.invalid/archive/2023/ircc/pgwp/eligibility — captured 2023-06-01
+1. MOCK archive 2023 ircc pgwp eligibility | mock.invalid § MOCK archive 2023 ircc pgwp eligibility › Captured: June 1, 2023 — Web · https://mock.invalid/archive/2023/ircc/pgwp/eligibility

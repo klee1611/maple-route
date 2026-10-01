@@ -10,7 +10,8 @@ class Claim(TypedDict):
     id: str                 # "c1", "c2"... for findings; "p1"... for user premises
     text: str
     source_id: str          # KB entry path ("" for a premise the user stated)
-    source_url: str | None
+    source_title: str | None  # the entry's citation: "<page> | <site> § <section>"
+    source_url: str | None    # only when the Knowledge Base gives one
     source_date: str | None
     status: ClaimStatus
     note: str | None        # verifier explanation

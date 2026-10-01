@@ -9,9 +9,10 @@ import asyncio
 
 
 def _cite(claim: dict) -> str:
-    if not claim.get("source_url"):
+    if not claim.get("source_title"):
         return "what you mentioned"
-    return claim["source_url"] + (f" ({claim['source_date']})" if claim.get("source_date") else "")
+    where = claim["source_url"] or claim["source_title"]
+    return where + (f" ({claim['source_date']})" if claim.get("source_date") else "")
 
 
 def render(answer: dict) -> str:
@@ -23,7 +24,8 @@ def render(answer: dict) -> str:
             out.append(f"  Now:    {cur['text']}\n          {_cite(cur)}")
     if answer["sources"]:
         out.append("\nSources")
-        out += [f"[{s['n']}] {s['url']}" + (f" ({s['date']})" if s["date"] else "") for s in answer["sources"]]
+        out += [f"[{s['n']}] {s['title']}" + (f"\n    {s['url']}" if s["url"] else "")
+                + (f" ({s['date']})" if s["date"] else "") for s in answer["sources"]]
     out.append(f"\n{answer['disclaimer']}")
     out.append(f"\n(verifier revisions: {answer['revisions']})")
     return "\n".join(out)

@@ -49,6 +49,9 @@ records where v1 narrows or adjusts it, and why.
 | D10 | Models: orchestrator `qwen/qwen3.8-27b`; policy + synthesizer `gpt-oss-120b`; verifier `gpt-oss-20b`; `reasoning_effort=low` for gpt-oss. | qwen for verifier/synthesizer | qwen produced malformed JSON (verifier) and dropped citation ids (synthesizer). Low effort cut output tokens ~60%. |
 | D11 | 429: wait max(header, message) + 1.5 s once (≤ 20 s), then `upstream_busy`; daily limits → `quota_exhausted`. | Exact retry-after | Groq's TPM window is rolling; exact waits failed. |
 | D12 | One MCP session per batch of KB calls, calls in sequence. | One session per tool call, parallel | Parallel session setup timed out; fewer handshakes. |
+| D13 | **D2 outcome:** the real KB generates its own change history. Given the Purpose text, the build produced a `policy_timeline` entry with "What is now outdated" / "What is currently active" sections and effective dates. The policy agent reads it via `change_paths`, and findings are flagged `former_rule`. No `ruleChange` docs needed for now. | `ruleChange` dataset docs | KB-native, which is what the judges score. |
+| D14 | Real citation format is `N. <page> \| <site> § <section path> — Web [· <url>]`, and **most citations have no URL**. Findings cite by reference number; code resolves title/URL/date from the entry's Sources list (the provenance guard). Trimming never cuts the Sources list. | Model copies URLs | Model-copied URLs can't be checked, and most entries have none. |
+| D15 | Strict structured outputs (`strict=True`, gpt-oss only); entry selection moved to qwen; synthesizer + verifier on `gpt-oss-20b`; verifier sees only the entries the draft cites. | | Measured on the real KB: 120b 4.2K, 20b 6.0K, qwen 1.3K tokens per answer. |
 
 **Measured capacity (mock KB):** ~6–7K tokens per answer on `gpt-oss-120b`, 6–20 s per answer. The free tier therefore sustains roughly **one uncached answer per minute** for the whole app; cache hits are free. Real KB entries may be longer — re-measure after the switch.
 
@@ -104,5 +107,4 @@ State = CLAUDE.md §5 `AgentState` + `premises: list[Claim]` +
 
 ## Open items
 
-- Q3: real entry format (citation shape, dates) and KB build time — waits on
-  the user's Sanity setup; the mock will be updated to match.
+- Q3 resolved (D13, D14). Open: citations lack URLs (try a KB Instruction asking for page URLs); KB covers only OINP + Global Talent Stream so far.

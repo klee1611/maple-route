@@ -5,10 +5,12 @@ import pytest
 from app.graph import nodes
 from app.graph.build import build_graph
 
-OUTLINE = "kbTEST\n- wp/current [core] — current rule\n- wp/archive [peripheral] — 2023 snapshot"
+OUTLINE = "Knowledge base id: `kbTEST`\n\nwp/current [core]\n\nwp/archive\n"
 ENTRIES = {
-    "wp/current": "Programs must be on the list. Source: https://x.invalid/now (2026-09-20)",
-    "wp/archive": "Any program qualifies. Source: https://x.invalid/old (2023-06-01)",
+    "wp/current": "Programs must be on the list [1].\n\n## Sources\n\n"
+                  "1. Rules | x.invalid § Rules › Updated: September 20, 2026 — Web · https://x.invalid/now\n",
+    "wp/archive": "Any program qualifies [1].\n\n## Sources\n\n"
+                  "1. Old rules | x.invalid § Old rules › Captured: June 1, 2023 — Web\n",
 }
 
 
@@ -29,11 +31,13 @@ def fake_world(monkeypatch):
         if prompt == "policy_select":
             first = not payload["already_read"]
             return schema(knowledge_base="kbTEST", paths=["wp/archive" if first else "wp/current"],
-                          archived_paths=[])
+                          change_paths=[])
         if prompt == "policy_extract":
             [(path, text)] = payload["entries"].items()
-            url = text.split("Source: ")[1].split()[0]
-            return schema(findings=[{"text": text.split(".")[0], "source_path": path, "source_url": url}])
+            return schema(findings=[
+                {"text": text.split(" [")[0], "source_path": path, "source_refs": [1], "former_rule": False},
+                {"text": "Invented", "source_path": path, "source_refs": [9], "former_rule": False},  # no [9]
+            ])
         if prompt == "synthesizer":
             calls["synth_findings"].append([f["id"] for f in payload["findings"]])
             return schema(units=[{"kind": "fact", "text": f["text"], "claim_ids": [f["id"]]}
@@ -61,8 +65,11 @@ async def test_verifier_rejects_outdated_claim_and_answer_is_corrected(fake_worl
     assert fake_world["synth_findings"] == [["c1"], ["c2"]]  # rejected c1 not reused
     assert "Programs must be on the list" in answer["text"]
     assert "Any program qualifies" not in answer["text"]
-    assert [s["url"] for s in answer["sources"]] == ["https://x.invalid/now"]
-    assert answer["conflicts"][0]["old"]["source_url"] == "https://x.invalid/old"
+    assert "Invented" not in answer["text"]  # cited a source number the entry doesn't have
+    assert [(s["url"], s["date"]) for s in answer["sources"]] == [("https://x.invalid/now", "September 20, 2026")]
+    old = answer["conflicts"][0]["old"]
+    assert (old["source_title"], old["source_url"], old["source_date"]) == (
+        "Old rules | x.invalid § Old rules › Captured: June 1, 2023", None, "June 1, 2023")
 
 
 async def test_revisions_stop_at_two(fake_world, monkeypatch):
@@ -78,8 +85,8 @@ async def test_revisions_stop_at_two(fake_world, monkeypatch):
 
 
 def test_finalize_drops_unsupported_and_numbers_sources_by_url():
-    finding = lambda i, url: {"id": i, "text": i, "source_id": "e", "source_url": url,
-                              "source_date": None, "status": "unverified", "note": None}
+    finding = lambda i, title: {"id": i, "text": i, "source_id": "e", "source_title": title, "source_url": None,
+                                "source_date": None, "status": "unverified", "note": None}
     state = {
         "policy_findings": [finding("c1", "u1"), finding("c2", "u1"), finding("c3", "u2")],
         "claims": [{**finding("c1", "u1"), "status": "supported"},
@@ -91,9 +98,24 @@ def test_finalize_drops_unsupported_and_numbers_sources_by_url():
     }
     answer = nodes.finalize(state)["final_answer"]
     assert answer["text"] == "A [1]\n\nNot covered."
-    assert [s["url"] for s in answer["sources"]] == ["u1"]
+    assert [s["title"] for s in answer["sources"]] == ["u1"]
 
 
 def test_out_of_scope_skips_research():
     answer = nodes.finalize({"in_scope": False})["final_answer"]
     assert answer["text"] == nodes.NOT_COVERED
+
+
+def test_citations_parse_real_format_and_trim_keeps_sources():
+    from app.graph import kb
+
+    entry = ("x" * 9000 + "\n\n## Sources\n\n"
+             "1. Page A | ontario.ca § Updates › April 23, 2026 › Draw — Web\n"
+             "2. Page B - Canada.ca — Web · https://www.canada.ca/b.html\n")
+    assert kb.citations(entry) == {
+        1: {"title": "Page A | ontario.ca § Updates › April 23, 2026 › Draw", "url": None, "date": "April 23, 2026"},
+        2: {"title": "Page B - Canada.ca", "url": "https://www.canada.ca/b.html", "date": None},
+    }
+    trimmed = kb.trim(entry)
+    assert len(trimmed) <= kb.MAX_ENTRY_CHARS + 50
+    assert kb.citations(trimmed) == kb.citations(entry)
