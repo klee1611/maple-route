@@ -12,6 +12,8 @@ Four AI agents work on each question, and a final code step removes anything the
 
 **Live:** https://maple-route.vercel.app · **Demo video:** https://youtu.be/1-cmFlTunG8 · **Write-up:** [DEV.to](https://dev.to/kourtneylee1611/maple-route-a-multi-agent-ai-that-checks-whether-canadian-immigration-rules-you-heard-are-still-3jec)
 
+https://github.com/user-attachments/assets/dde4ee2b-a631-42be-967e-f93b06d39c24
+
 Maple Route is free to use. If it helped you, you can support it here:
 
 <a href="https://www.buymeacoffee.com/klee1611"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="40"></a>
