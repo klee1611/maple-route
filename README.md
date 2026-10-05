@@ -143,6 +143,7 @@ The repo is connected to Vercel, and every push to `main` deploys to production.
 | `CACHE_TTL_HOURS` | no | How long a cached answer is kept (default 12) |
 | `TURNSTILE_SECRET_KEY` | **yes** | Cloudflare Turnstile server key. Required on Vercel; questions are rejected without it |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | no (public) | Cloudflare Turnstile site key, built into the frontend |
+| `NEXT_PUBLIC_GA_ID` | no (public) | Optional Google Analytics 4 measurement ID (`G-…`). Loaded only after the visitor clicks “Allow analytics” |
 | `LANGSMITH_API_KEY` | **yes** | LangSmith tracing |
 | `LANGSMITH_TRACING`, `LANGSMITH_PROJECT` | no | `true`, `maple-route` |
 
@@ -156,7 +157,7 @@ The repo is connected to Vercel, and every push to `main` deploys to production.
 
 ## Privacy
 
-No database of our own and no conversation history. Questions are not stored; cache keys are hashes and cached values hold only the final answer. LangSmith traces (for debugging) contain the question text. See `/privacy` on the site.
+No database of our own and no conversation history. Questions are not stored; cache keys are hashes and cached values hold only the final answer. LangSmith traces (for debugging) contain the question text. Google Analytics runs only if the visitor allows it, and questions are never sent to it. See `/privacy` on the site.
 
 ## Disclaimer
 

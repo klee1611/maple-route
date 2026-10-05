@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Atkinson_Hyperlegible_Next, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@/components/Analytics";
 
 // Reading text: designed for legibility (look-alike characters are distinct).
 const reading = Atkinson_Hyperlegible_Next({ variable: "--font-reading", subsets: ["latin"] });
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </a>
           </footer>
         </div>
+        <Analytics />
       </body>
     </html>
   );

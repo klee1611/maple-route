@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AnalyticsSettings } from "@/components/Analytics";
 import { Prose } from "@/components/Prose";
 
 export const metadata: Metadata = { title: "Privacy · Maple Route" };
@@ -28,6 +29,15 @@ export default function Privacy() {
           AI tokens they used. In the public app, the text of questions and answers is hidden from these traces.
         </li>
       </ul>
+
+      <h2>Analytics (only if you allow it)</h2>
+      <p>
+        If you click “Allow analytics”, we use Google Analytics to count visits and see which pages are used. It sets
+        cookies and sends Google information such as the pages you view, your browser and device type, and your
+        approximate location. <strong>Your questions and answers are never sent to Google.</strong> If you choose “No
+        thanks”, Google Analytics is not loaded at all. Your choice is saved in this browser only.
+      </p>
+      <AnalyticsSettings />
 
       <h2>Services involved</h2>
       <p>
