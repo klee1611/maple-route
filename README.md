@@ -1,10 +1,34 @@
 # Maple Route
 
-A multi-agent system that answers questions about Canadian work permit and permanent residence pathways for tech workers in Ontario. It answers only from a Sanity Knowledge Base of official pages, cites a source for every claim, and flags rules that are no longer current.
+A multi-agent AI system that answers questions about a **small set of Canadian immigration topics**, using only official pages stored in a Sanity Knowledge Base:
 
-**Live:** https://maple-route.vercel.app
+- Express Entry points (CRS criteria)
+- open work permits for spouses and family members
+- post-graduation work permit eligibility
+- 2026 changes to the Ontario Immigrant Nominee Program
+- a few related canada.ca pages, such as the Global Talent Stream
+
+Four AI agents work on each question, and a final code step removes anything the sources don't support. Every claim has a citation, rules the user mentions are flagged if they have changed, and questions outside these pages get a "not covered" answer. Built with tech workers in mind.
+
+**Live:** https://maple-route.vercel.app · **Demo video:** https://youtu.be/1-cmFlTunG8
 
 Information, not legal advice. Not affiliated with the Government of Canada.
+
+## Scope: read this first
+
+Maple Route covers only a **small set of official pages**. Many programs, exceptions and recent updates are not in its sources, so it can't answer every question, and an answer may leave out rules that apply to you.
+
+Use it as a starting point: to learn which options might exist for you, and to notice when a rule you heard about has changed. **Do not use it as legal advice.** Before you make a decision or apply, check the official pages yourself and talk to a licensed immigration consultant (RCIC) or a lawyer.
+
+The Knowledge Base is built from these pages:
+
+| Source | Topic |
+|---|---|
+| [canada.ca: Express Entry CRS criteria](https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/check-score/crs-criteria.html) | Express Entry points |
+| [canada.ca: Open work permits for family members, eligibility](https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/special-instructions/spouses-dependent-children/eligibility.html) | Spouse and family work permits |
+| [canada.ca: Post-graduation work permit, eligibility](https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/work/after-graduation/eligibility.html) | Post-graduation work permits |
+| [canada.ca: Immigration, Refugees and Citizenship](https://www.canada.ca/en/immigration-refugees-citizenship.html) (3 documents) | IRCC home page and a few related pages, such as the Global Talent Stream |
+| [ontario.ca: 2026 Ontario Immigrant Nominee Program updates](https://www.ontario.ca/page/2026-ontario-immigrant-nominee-program-updates) | OINP changes |
 
 ## Architecture
 
@@ -27,6 +51,8 @@ flowchart LR
     G -.-> Groq[Groq LLMs]
     G -.-> LS[LangSmith]
 ```
+
+Four nodes are LLM agents; `finalize` is plain code.
 
 | Node | Does | Code |
 |---|---|---|
@@ -116,7 +142,7 @@ The repo is connected to Vercel, and every push to `main` deploys to production.
 
 ## Limitations
 
-- Ontario and tech-worker pathways only; the Knowledge Base holds a focused set of official pages.
+- Only the official pages listed under [Scope](#scope-read-this-first) are in the Knowledge Base. Questions outside them get a "not covered" answer, and answers may miss rules from pages that aren't included.
 - The employer lookup (positive LMIA records) is not built. Employer questions get a "not covered" answer.
 - Answers are only as current as the Knowledge Base's last refresh of each page.
 - Many Knowledge Base citations have a page title but no URL.
@@ -128,6 +154,6 @@ No database of our own and no conversation history. Questions are not stored; ca
 
 ## Disclaimer
 
-This is information from official sources, not legal advice. For your specific case, talk to a licensed immigration consultant (RCIC) or lawyer.
+Maple Route is a reference to help you see possible options and notice policy changes. It is not legal advice, and it is not complete. For your specific case, talk to a licensed immigration consultant (RCIC) or lawyer.
 
 Built for the [DEV.to Sanity Challenge](https://dev.to/challenges/sanity-2026-09-16) (Path One).

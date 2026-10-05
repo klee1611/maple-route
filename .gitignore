@@ -22,3 +22,4 @@ frontend/out/
 
 # browser test artifacts
 .playwright-mcp/
+.vercel
