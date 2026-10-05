@@ -12,6 +12,10 @@ Four AI agents work on each question, and a final code step removes anything the
 
 **Live:** https://maple-route.vercel.app · **Demo video:** https://youtu.be/1-cmFlTunG8
 
+Maple Route is free to use. If it helped you, you can support it here:
+
+<a href="https://www.buymeacoffee.com/klee1611"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="40"></a>
+
 Information, not legal advice. Not affiliated with the Government of Canada.
 
 ## Scope: read this first
