@@ -79,7 +79,9 @@ class UpstashStore:
 
 
 def _make_store() -> Store:
-    url, token = os.getenv("UPSTASH_REDIS_REST_URL"), os.getenv("UPSTASH_REDIS_REST_TOKEN")
+    # The Vercel Marketplace integration names these KV_REST_API_URL/TOKEN.
+    url = os.getenv("UPSTASH_REDIS_REST_URL") or os.getenv("KV_REST_API_URL")
+    token = os.getenv("UPSTASH_REDIS_REST_TOKEN") or os.getenv("KV_REST_API_TOKEN")
     return UpstashStore(url, token) if url and token else MemoryStore()
 
 
