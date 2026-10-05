@@ -23,3 +23,6 @@ frontend/out/
 # browser test artifacts
 .playwright-mcp/
 .vercel
+
+# demo video source (41 MB; hosted on YouTube, README uses docs/media/demo.gif)
+docs/*.mp4

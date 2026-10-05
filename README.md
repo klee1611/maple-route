@@ -10,7 +10,7 @@ A multi-agent AI system that answers questions about a **small set of Canadian i
 
 Four AI agents work on each question, and a final code step removes anything the sources don't support. Every claim has a citation, rules the user mentions are flagged if they have changed, and questions outside these pages get a "not covered" answer. Built with tech workers in mind.
 
-**Live:** https://maple-route.vercel.app · **Demo video:** https://youtu.be/1-cmFlTunG8
+**Live:** https://maple-route.vercel.app · **Demo video:** https://youtu.be/1-cmFlTunG8 · **Write-up:** [DEV.to](https://dev.to/kourtneylee1611/maple-route-a-multi-agent-ai-that-checks-whether-canadian-immigration-rules-you-heard-are-still-3jec)
 
 Maple Route is free to use. If it helped you, you can support it here:
 
