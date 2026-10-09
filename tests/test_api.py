@@ -29,7 +29,8 @@ class FakeGraph:
 @pytest.fixture
 def api(monkeypatch):
     monkeypatch.setattr(limits, "store", limits.MemoryStore())
-    small = dataclasses.replace(limits.settings, daily_answer_limit=2, per_ip_hourly_limit=2)
+    small = dataclasses.replace(limits.settings, daily_answer_limit=2, per_ip_hourly_limit=2,
+                                per_ip_daily_limit=3)
     monkeypatch.setattr(limits, "settings", small)
     monkeypatch.delenv("TURNSTILE_SECRET_KEY", raising=False)
     monkeypatch.delenv("VERCEL", raising=False)
@@ -81,6 +82,29 @@ async def test_per_ip_hourly_limit(api):
     assert events[0][1]["code"] == "rate_limited"
 
 
+async def test_per_ip_daily_limit(api, monkeypatch):
+    monkeypatch.setattr(limits, "settings", dataclasses.replace(limits.settings, daily_answer_limit=10,
+                                                                per_ip_hourly_limit=10, per_ip_daily_limit=2))
+    await ask("a")
+    await ask("b")
+    assert (await ask("c"))[0][1]["code"] == "rate_limited"
+
+
+async def test_ipv6_addresses_in_one_64_share_a_limit(api):
+    await ask("a", ip="2001:db8:1:2::1")
+    await ask("b", ip="2001:db8:1:2:ffff::9")
+    assert (await ask("c", ip="2001:db8:1:2::abcd"))[0][1]["code"] == "rate_limited"
+    # A different /64 isn't rate limited (the tiny test budget is spent, so it hits that instead).
+    assert (await ask("d", ip="2001:db8:1:3::1"))[0][1]["code"] == "quota_exhausted"
+
+
+def test_client_key():
+    assert limits.client_key("2001:db8:1:2:3:4:5:6") == "2001:db8:1:2::/64"
+    assert limits.client_key("::ffff:1.2.3.4") == "1.2.3.4"
+    assert limits.client_key("1.2.3.4") == "1.2.3.4"
+    assert limits.client_key("unknown") == "unknown"
+
+
 async def test_failed_run_refunds_budget_and_hides_internals(api, monkeypatch):
     monkeypatch.setattr(main, "graph", FakeGraph(fail=RuntimeError("secret stack detail")))
     events = await ask("boom")
@@ -106,3 +130,36 @@ async def test_turnstile_rejection(api, monkeypatch):
     events = await ask("q")
     assert events[0][1]["code"] == "invalid_input"
     assert api.calls == 0
+
+
+class FakeSiteverify:
+    def __init__(self, result: dict):
+        self.result = result
+
+    def __call__(self, *_args, **_kwargs):
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_exc):
+        return False
+
+    async def post(self, *_args, **_kwargs):
+        return httpx.Response(200, json=self.result)
+
+
+@pytest.mark.parametrize(("hostname", "accepted"), [("maple-route.vercel.app", True), ("evil.example", False)])
+async def test_turnstile_hostname_allowlist(monkeypatch, hostname, accepted):
+    from app import turnstile
+
+    monkeypatch.setenv("TURNSTILE_SECRET_KEY", "secret")
+    monkeypatch.setenv("TURNSTILE_ALLOWED_HOSTNAMES", "maple-route.vercel.app, localhost")
+    monkeypatch.setattr(turnstile.httpx, "AsyncClient", FakeSiteverify({"success": True, "hostname": hostname}))
+    assert await turnstile.verify("token", "1.2.3.4") is accepted
+
+
+async def test_api_sets_nosniff(api):
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://t") as client:
+        resp = await client.get("/api/quota")
+    assert resp.headers["x-content-type-options"] == "nosniff"

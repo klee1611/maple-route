@@ -36,7 +36,7 @@ function errorText(code: ErrorCode, message: string, resetsAt?: string): string 
     case "quota_exhausted":
       return `The free daily limit has been reached. Answers are available again at ${formatReset(resetsAt)}.`;
     case "rate_limited":
-      return message || "You've asked several questions in the last hour. Please try again later.";
+      return message || "You've asked several questions recently. Please try again in an hour or tomorrow.";
     case "upstream_busy":
       return "The free AI service is busy right now. Please wait a minute, then try again.";
     case "invalid_input":

@@ -24,6 +24,7 @@ class Settings:
 
     daily_answer_limit: int = _int("DAILY_ANSWER_LIMIT", 30)
     per_ip_hourly_limit: int = _int("PER_IP_HOURLY_LIMIT", 5)
+    per_ip_daily_limit: int = _int("PER_IP_DAILY_LIMIT", 8)
     cache_ttl_hours: int = _int("CACHE_TTL_HOURS", 12)
 
     # External-call guardrails (CLAUDE.md §10)

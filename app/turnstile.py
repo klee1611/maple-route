@@ -26,7 +26,16 @@ async def verify(token: str, ip: str | None) -> bool:
     try:
         async with httpx.AsyncClient(timeout=settings.http_timeout_s) as client:
             resp = await client.post(SITEVERIFY_URL, data=data)
-        return bool(resp.json().get("success"))
+        result = resp.json()
     except (httpx.HTTPError, ValueError) as exc:
         log.warning("turnstile verification failed: %s", type(exc).__name__)
         return False
+    if not result.get("success"):
+        return False
+    # Cloudflare reports where the challenge was solved; a token from any other site (one reusing
+    # this public site key, say) is rejected. Unset = no check (local development, test keys).
+    allowed = {h.strip() for h in os.getenv("TURNSTILE_ALLOWED_HOSTNAMES", "").split(",") if h.strip()}
+    if allowed and result.get("hostname") not in allowed:
+        log.warning("turnstile hostname not allowed")
+        return False
+    return True

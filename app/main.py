@@ -24,6 +24,15 @@ log = logging.getLogger("maple_route")
 
 app = FastAPI(title="Maple Route API", docs_url=None, redoc_url=None)
 
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    # The pages get their headers from next.config.ts; the API is a separate service.
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = response.headers.get("Cache-Control", "no-store")
+    return response
+
 if not os.getenv("VERCEL"):
     # Local development only: the Next.js dev server runs on another port. In production
     # the frontend and API share one origin, so no CORS is needed.
@@ -99,7 +108,7 @@ async def _run(question: str, ip: str, token: str) -> AsyncIterator[dict]:
         return
 
     if not await limits.allow_ip(ip):
-        yield _error("rate_limited", "You've asked several questions in the last hour. Please try again later.")
+        yield _error("rate_limited", "You've asked several questions recently. Please try again in an hour or tomorrow.")
         return
     remaining = await limits.reserve_answer()
     if remaining is None:

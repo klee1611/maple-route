@@ -140,9 +140,11 @@ The repo is connected to Vercel, and every push to `main` deploys to production.
 | `UPSTASH_REDIS_REST_TOKEN` | **yes** | Upstash token |
 | `DAILY_ANSWER_LIMIT` | no | Answers per day for the whole app (default 30) |
 | `PER_IP_HOURLY_LIMIT` | no | Questions per IP per hour (default 5) |
+| `PER_IP_DAILY_LIMIT` | no | Questions per IP per day (default 8). IPv6 addresses are counted per /64 |
 | `CACHE_TTL_HOURS` | no | How long a cached answer is kept (default 12) |
 | `TURNSTILE_SECRET_KEY` | **yes** | Cloudflare Turnstile server key. Required on Vercel; questions are rejected without it |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | no (public) | Cloudflare Turnstile site key, built into the frontend |
+| `TURNSTILE_ALLOWED_HOSTNAMES` | no | Comma-separated hostnames where a Turnstile challenge counts, e.g. `maple-route.vercel.app`. Empty = no check |
 | `NEXT_PUBLIC_GA_ID` | no (public) | Optional Google Analytics 4 measurement ID (`G-…`). Loaded only after the visitor clicks “Allow analytics” |
 | `LANGSMITH_API_KEY` | **yes** | LangSmith tracing |
 | `LANGSMITH_TRACING`, `LANGSMITH_PROJECT` | no | `true`, `maple-route` |

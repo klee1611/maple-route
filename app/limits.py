@@ -6,6 +6,7 @@ Keys hold only hashes and counters; cached values hold only the final answer.
 """
 
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -122,12 +123,28 @@ async def refund_answer() -> None:
     await store.decr(_day_key())
 
 
-# --- per-IP hourly limit ------------------------------------------------------
+# --- per-IP limits (hourly and daily) -----------------------------------------
+
+def client_key(ip: str) -> str:
+    """One IPv6 subscriber usually holds a whole /64, so count the /64 rather than each address."""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped:
+            return str(addr.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{addr}/64", strict=False))
+    return str(addr)
+
 
 async def allow_ip(ip: str) -> bool:
-    hour = datetime.now(UTC).strftime("%Y-%m-%dT%H")
-    used = await store.incr(f"ip:{_hash(ip)[:24]}:{hour}", ttl_s=3600)
-    return used <= settings.per_ip_hourly_limit
+    who = _hash(client_key(ip))[:24]
+    now = datetime.now(UTC)
+    if await store.incr(f"ip:{who}:{now:%Y-%m-%dT%H}", ttl_s=3600) > settings.per_ip_hourly_limit:
+        return False
+    # The daily cap keeps one visitor from using most of the shared daily budget.
+    return await store.incr(f"ipday:{who}:{now:%Y-%m-%d}", ttl_s=86400) <= settings.per_ip_daily_limit
 
 
 # --- answer cache -------------------------------------------------------------
