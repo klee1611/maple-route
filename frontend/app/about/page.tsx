@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { Prose } from "@/components/Prose";
+import { REPO_URL, pageMetadata } from "@/lib/site";
 
-export const metadata: Metadata = { title: "About · Maple Route" };
+export const metadata: Metadata = pageMetadata({
+  title: "About",
+  description:
+    "How Maple Route answers Canadian immigration questions: AI agents that read only official IRCC and Ontario sources, cite every statement, and flag rules that have changed.",
+  path: "/about",
+});
 
 export default function About() {
   return (
@@ -50,6 +56,40 @@ export default function About() {
         <strong>Freshness:</strong> the official web pages are connected as live sources, and the Knowledge Base
         re-checks them on its refresh schedule, so answers follow the current version of each page.
       </p>
+      <p>The official pages it is built from:</p>
+      <ul>
+        <li>
+          <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/check-score/crs-criteria.html">
+            Express Entry: Comprehensive Ranking System criteria
+          </a>{" "}
+          (canada.ca)
+        </li>
+        <li>
+          <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/special-instructions/spouses-dependent-children/eligibility.html">
+            Open work permits for spouses and family members: who is eligible
+          </a>{" "}
+          (canada.ca)
+        </li>
+        <li>
+          <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/work/after-graduation/eligibility.html">
+            Post-graduation work permit: who is eligible
+          </a>{" "}
+          (canada.ca)
+        </li>
+        <li>
+          <a href="https://www.ontario.ca/page/2026-ontario-immigrant-nominee-program-updates">
+            2026 Ontario Immigrant Nominee Program updates
+          </a>{" "}
+          (ontario.ca)
+        </li>
+        <li>
+          A few related pages from{" "}
+          <a href="https://www.canada.ca/en/immigration-refugees-citizenship.html">
+            Immigration, Refugees and Citizenship Canada
+          </a>
+          , such as the Global Talent Stream
+        </li>
+      </ul>
 
       <h2>Limitations</h2>
       <ul>
@@ -67,6 +107,10 @@ export default function About() {
         Built for the{" "}
         <a href="https://dev.to/challenges/sanity-2026-09-16">DEV.to Sanity Challenge</a> (Path One: an agent that
         queries real content).
+      </p>
+      <p>
+        Built and maintained by an independent developer, not a licensed immigration consultant. The code is open
+        source on <a href={REPO_URL}>GitHub</a>, where you can also report a wrong or outdated answer.
       </p>
     </Prose>
   );

@@ -1,0 +1,25 @@
+# Maple Route
+
+> A free, independent tool that answers questions about Canadian work permits and permanent residence for tech workers, mainly in Ontario. Every statement comes from an official source and is shown with a citation. When a rule has changed, the answer shows what the older source said and what the current source says. It is information, not legal advice, and it is not affiliated with any government.
+
+## Pages
+
+- [Ask a question](https://maple-route.vercel.app/): describe your situation and get the pathways that may apply, with sources.
+- [How it works](https://maple-route.vercel.app/about): the agents, the Knowledge Base, how sources are checked, and limitations.
+- [Privacy](https://maple-route.vercel.app/privacy): what is stored (no conversations or accounts).
+
+## Topics covered
+
+- Post-graduation work permit (PGWP) eligibility
+- Open work permits for spouses and family members of workers
+- Express Entry points (CRS), including job offer points
+- 2026 changes to the Ontario Immigrant Nominee Program (OINP)
+- Related work permit programs, such as the Global Talent Stream
+
+## Sources
+
+All policy information comes from official pages on canada.ca (IRCC and ESDC) and ontario.ca, held in a Sanity Knowledge Base that re-checks the live pages on a schedule. Questions outside these sources get a "not covered" answer.
+
+## Optional
+
+- [Source code](https://github.com/klee1611/maple-route)

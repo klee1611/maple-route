@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Atkinson_Hyperlegible_Next, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@/components/Analytics";
+import { HOME_TITLE, REPO_URL, SITE_NAME, SITE_URL } from "@/lib/site";
 
 // Reading text: designed for legibility (look-alike characters are distinct).
 const reading = Atkinson_Hyperlegible_Next({ variable: "--font-reading", subsets: ["latin"] });
@@ -10,15 +11,48 @@ const reading = Atkinson_Hyperlegible_Next({ variable: "--font-reading", subsets
 const record = IBM_Plex_Mono({ variable: "--font-record", subsets: ["latin"], weight: ["400", "500"] });
 
 export const metadata: Metadata = {
-  title: "Maple Route",
-  description:
-    "Check which Canadian work permit and permanent residence rules apply to you, with a source for every statement. Not legal advice.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: HOME_TITLE, template: `%s · ${SITE_NAME}` },
+  applicationName: SITE_NAME,
+};
+
+// Describes the tool to search engines. No FAQ or HowTo markup: Google no longer shows those for sites like this.
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: SITE_NAME,
+      inLanguage: "en-CA",
+    },
+    {
+      "@type": "WebApplication",
+      "@id": `${SITE_URL}/#app`,
+      url: SITE_URL,
+      name: SITE_NAME,
+      description:
+        "Answers questions about Canadian work permits and permanent residence for tech workers, citing official sources for every statement and flagging rules that have changed. Information, not legal advice.",
+      applicationCategory: "ReferenceApplication",
+      operatingSystem: "Any",
+      isAccessibleForFree: true,
+      offers: { "@type": "Offer", price: "0", priceCurrency: "CAD" },
+      inLanguage: "en-CA",
+      sameAs: [REPO_URL],
+    },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${reading.variable} ${record.variable}`}>
       <body className="min-h-dvh bg-paper text-ink antialiased">
+        <script
+          type="application/ld+json"
+          // Static object defined above; escape "<" so the JSON can never close the script tag.
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+        />
         <div className="mx-auto flex min-h-dvh max-w-3xl flex-col px-4 sm:px-6">
           <header className="flex items-baseline justify-between gap-4 border-b border-rule py-5">
             <Link href="/" className="text-xl font-semibold tracking-tight text-ink no-underline">
