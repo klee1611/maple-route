@@ -121,7 +121,7 @@ class SelectOut(BaseModel):
 class Finding(BaseModel):
     text: str
     source_path: str
-    source_refs: list[int]      # the [n] citation numbers the entry puts on this statement
+    source_refs: list[str | int]  # the citation refs the entry puts on this statement: "ab12cd" for [^ab12cd], 1 for [1]
     former_rule: bool           # describes a rule that no longer applies (closed, replaced, archived)
 
 
@@ -155,10 +155,12 @@ async def policy_agent(state: AgentState) -> dict:
     out = await _structured("policy", "policy_extract", ExtractOut, {"entries": new_entries, **context})
     findings = list(state.get("policy_findings", []))
     for f in out.findings:
-        # Provenance guard: the finding must point at a citation that exists in its entry's
-        # Sources list, or it is dropped. Title, URL, and date come from the entry, not the model.
+        # Provenance guard: the finding must point at a citation that exists in its entry, or it is
+        # dropped. Title, URL, and date come from the entry, not the model. An entry that names only
+        # its page ("source") covers every statement in it.
         cites = kb.citations(sources.get(f.source_path, ""))
-        cite = next((cites[n] for n in f.source_refs if n in cites), None)
+        refs = [str(r).strip("[]^ ") for r in f.source_refs]
+        cite = next((cites[r] for r in refs if r in cites), None) or cites.get("source")
         if cite is None:
             continue
         findings.append(Claim(

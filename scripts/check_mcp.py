@@ -55,8 +55,9 @@ async def check_endpoints() -> bool:
         print("\n--- Policy outline (first 800 chars) ---\n" + outline[:800])
         kb_ids = re.findall(r"\bkb[A-Za-z0-9_-]+", outline)
         paths = [  # entries, not folders
-            p for p in re.findall(r"^\s*-\s*([\w./-]+?)\s+(?:\[core\]|—)", outline, re.M)
-            if not p.endswith("/")
+            # "- path [core]" / "- path — summary" (older outline), or "path [core]" / "path" alone on a line
+            p for p in re.findall(r"^\s*(?:-\s*)?([\w./-]+?)(?:\s+(?:\[core\]|—).*)?\s*$", outline, re.M)
+            if not p.endswith("/") and (p.islower() or "/" in p)
         ]
         if not (kb_ids and paths):
             print("\nCould not parse a KB id/entry path from the outline; read it above.")
