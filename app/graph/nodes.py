@@ -221,11 +221,12 @@ class FindingVerdict(BaseModel):
 
 
 class PremiseVerdict(BaseModel):
+    # The ids come before the note: written after it, the model often left contradicted_by empty.
     id: str
     status: Literal["supported", "contradicted", "not_covered"]
-    note: str
     contradicted_by: list[str]  # ids of current findings that say otherwise
     matches_older: list[str]    # ids of former-rule findings that state the same rule
+    note: str
 
 
 class VerifyOut(BaseModel):
