@@ -1,17 +1,8 @@
-import type { Metadata } from "next";
-import { Prose } from "@/components/Prose";
-import { REPO_URL, pageMetadata } from "@/lib/site";
+import { REPO_URL } from "@/lib/site";
 
-export const metadata: Metadata = pageMetadata({
-  title: "About",
-  description:
-    "How Maple Route answers Canadian immigration questions: AI agents that read only official IRCC and Ontario sources, cite every statement, and flag rules that have changed.",
-  path: "/about",
-});
-
-export default function About() {
+export function AboutEn() {
   return (
-    <Prose>
+    <>
       <h1>How Maple Route works</h1>
       <p>
         Maple Route answers questions about Canadian work permits and permanent residence for tech workers, mainly
@@ -112,6 +103,6 @@ export default function About() {
         Built and maintained by an independent developer, not a licensed immigration consultant. The code is open
         source on <a href={REPO_URL}>GitHub</a>, where you can also report a wrong or outdated answer.
       </p>
-    </Prose>
+    </>
   );
 }

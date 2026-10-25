@@ -1,18 +1,8 @@
-import type { Metadata } from "next";
 import { AnalyticsSettings } from "@/components/Analytics";
-import { Prose } from "@/components/Prose";
-import { pageMetadata } from "@/lib/site";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Privacy",
-  description:
-    "What Maple Route stores: no accounts and no saved conversations. Analytics only if you allow it.",
-  path: "/privacy",
-});
-
-export default function Privacy() {
+export function PrivacyEn() {
   return (
-    <Prose>
+    <>
       <h1>Privacy</h1>
       <p>Maple Route has no accounts and does not keep your conversations.</p>
 
@@ -59,6 +49,6 @@ export default function Privacy() {
 
       <h2>Contact</h2>
       <p>Questions about this page? Leave a comment on the project’s DEV.to post.</p>
-    </Prose>
+    </>
   );
 }

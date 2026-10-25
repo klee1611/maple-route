@@ -11,4 +11,5 @@ Rules:
 - Start with a direct answer to the question when the findings allow it, then the requirements that matter for this user.
 - Conclusions that apply a finding to the user's situation are facts too: cite the finding they rely on.
 - If the findings don't fully answer the question, say what is not covered in a "not_covered" unit with empty claim_ids. It must not state any immigration rule.
+- Write every unit's text in the language named in "language". The findings are in English: translate their meaning exactly, keep numbers and dates unchanged, and keep official program names recognizable (for Chinese, the translated name followed by the English name or acronym in parentheses the first time, for example 快速通道（Express Entry）).
 - Do not add a disclaimer; it is added later.

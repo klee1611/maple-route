@@ -15,9 +15,9 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from app import limits, turnstile
-from app.errors import AppError, QuotaExhausted
+from app.errors import AppError
 from app.graph.build import graph
-from app.graph.nodes import DISCLAIMER
+from app.i18n import Lang, t
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("maple_route")
@@ -41,18 +41,14 @@ if not os.getenv("VERCEL"):
 
 MAX_QUESTION_CHARS = 1000
 
-# Plain-language progress for the timeline; finalize is internal and not shown.
-STEP_LABELS = {
-    "orchestrator": "Understanding your situation",
-    "policy_agent": "Checking current rules",
-    "synthesizer": "Writing the answer",
-    "verifier": "Verifying sources",
-}
+# Agents shown in the timeline; finalize is internal and not shown.
+STEPS = ("orchestrator", "policy_agent", "synthesizer", "verifier")
 
 
 class AskBody(BaseModel):
     question: str
     turnstileToken: str = ""
+    lang: Lang = "en"
 
 
 def _event(name: str, data: dict) -> dict:
@@ -68,19 +64,21 @@ def _client_ip(request: Request) -> str:
     return forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
 
 
-def _finished_summary(node: str, result: dict) -> str:
+def _finished_summary(node: str, result: dict, lang: Lang) -> str:
     if node == "orchestrator":
         n = len(result.get("premises", []))
-        return "Understood your question" + (f" and {n} rule{'s' if n != 1 else ''} you mentioned" if n else "")
+        if n:
+            return t("done.orchestrator.premises", lang, n=n, s="s" if n != 1 else "")
+        return t("done.orchestrator", lang)
     if node == "policy_agent":
         n = len(result.get("sources", {}))
-        return f"Read {n} Knowledge Base entr{'ies' if n != 1 else 'y'}"
+        return t("done.policy_agent", lang, n=n, ies="ies" if n != 1 else "y")
     if node == "synthesizer":
-        return "Drafted the answer"
+        return t("done.synthesizer", lang)
     if node == "verifier":
         if result.get("verifier_notes"):
-            return "Found a rule that changed — rechecking"
-        return f"Checked {len(result.get('claims', []))} statements against their sources"
+            return t("done.verifier.recheck", lang)
+        return t("done.verifier", lang, n=len(result.get("claims", [])))
     return ""
 
 
@@ -91,28 +89,28 @@ def _answer_payload(final: dict) -> dict:
     }
 
 
-async def _run(question: str, ip: str, token: str) -> AsyncIterator[dict]:
+async def _run(question: str, ip: str, token: str, lang: Lang = "en") -> AsyncIterator[dict]:
     if not question:
-        yield _error("invalid_input", "Please type a question first.")
+        yield _error("invalid_input", t("error.empty", lang))
         return
     if len(question) > MAX_QUESTION_CHARS:
-        yield _error("invalid_input", f"Please shorten your question to {MAX_QUESTION_CHARS} characters or fewer.")
+        yield _error("invalid_input", t("error.too_long", lang, n=MAX_QUESTION_CHARS))
         return
     if not await turnstile.verify(token, ip):
-        yield _error("invalid_input", "We couldn't confirm you're not a bot. Please reload the page and try again.")
+        yield _error("invalid_input", t("error.bot", lang))
         return
 
-    if cached := await limits.cached_answer(question):
+    if cached := await limits.cached_answer(question, lang):
         yield _event("answer", {**cached, "cached": True})
         yield _event("quota", {"remainingToday": await limits.remaining_today()})
         return
 
     if not await limits.allow_ip(ip):
-        yield _error("rate_limited", "You've asked several questions recently. Please try again in an hour or tomorrow.")
+        yield _error("rate_limited", t("error.rate_limited", lang))
         return
     remaining = await limits.reserve_answer()
     if remaining is None:
-        yield _error("quota_exhausted", QuotaExhausted.message)
+        yield _error("quota_exhausted", t("error.quota_exhausted", lang))
         yield _event("quota", {"remainingToday": 0, "resetsAt": limits.resets_at()})
         return
 
@@ -122,35 +120,35 @@ async def _run(question: str, ip: str, token: str) -> AsyncIterator[dict]:
     current = "orchestrator"
     try:
         config = {"callbacks": [usage], "run_name": "ask", "metadata": {"surface": "api"}}
-        async for mode, chunk in graph.astream({"question": question}, config, stream_mode=["tasks", "custom"]):
+        async for mode, chunk in graph.astream({"question": question, "lang": lang}, config, stream_mode=["tasks", "custom"]):
             if mode == "custom" and chunk.get("type") == "waiting":
                 yield _event("step", {"agent": current, "status": "waiting",
-                                      "summary": f"The free AI service is busy — waiting {chunk['seconds']} seconds"})
+                                      "summary": t("waiting", lang, n=chunk["seconds"])})
                 continue
-            if mode != "tasks" or chunk["name"] not in STEP_LABELS | {"finalize": ""}:
+            if mode != "tasks" or chunk["name"] not in (*STEPS, "finalize", "localize"):
                 continue
             node = chunk["name"]
             if "result" not in chunk:  # task started
                 current = node
-                if node in STEP_LABELS:
-                    yield _event("step", {"agent": node, "status": "started", "summary": STEP_LABELS[node]})
+                if node in STEPS:
+                    yield _event("step", {"agent": node, "status": "started", "summary": t(f"step.{node}", lang)})
                 continue
             result = chunk["result"] or {}
-            if node == "finalize":
-                final = result["final_answer"]
+            if node in ("finalize", "localize"):
+                final = result.get("final_answer", final)  # localize returns nothing when there is nothing to translate
                 continue
-            yield _event("step", {"agent": node, "status": "finished", "summary": _finished_summary(node, result)})
+            yield _event("step", {"agent": node, "status": "finished", "summary": _finished_summary(node, result, lang)})
             if node == "verifier":
                 for claim in result.get("claims", []):
                     yield _event("claim", claim)
     except AppError as exc:
         await limits.refund_answer()
-        yield _error(exc.code, exc.message)
+        yield _error(exc.code, t(f"error.{exc.code}", lang))
         return
     except Exception as exc:  # noqa: BLE001 — never leak internals to the client
         await limits.refund_answer()
         log.exception("run failed: %s", type(exc).__name__)
-        yield _error("internal", AppError.message)
+        yield _error("internal", t("error.internal", lang))
         return
     finally:
         await asyncio.to_thread(wait_for_all_tracers)  # serverless: flush traces before returning
@@ -159,14 +157,14 @@ async def _run(question: str, ip: str, token: str) -> AsyncIterator[dict]:
     log.info("answer done tokens=%d revisions=%d seconds=%.1f",
              tokens, final["revisions"], time.monotonic() - started)
     payload = _answer_payload(final)
-    await limits.cache_answer(question, payload)
+    await limits.cache_answer(question, lang, payload)
     yield _event("answer", payload)
     yield _event("quota", {"remainingToday": remaining})
 
 
 @app.post("/api/ask")
 async def ask(body: AskBody, request: Request) -> EventSourceResponse:
-    return EventSourceResponse(_run(body.question.strip(), _client_ip(request), body.turnstileToken))
+    return EventSourceResponse(_run(body.question.strip(), _client_ip(request), body.turnstileToken, body.lang))
 
 
 @app.get("/api/quota")
@@ -176,4 +174,4 @@ async def quota() -> dict:
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"ok": True, "disclaimer": DISCLAIMER}
+    return {"ok": True, "disclaimer": t("disclaimer")}

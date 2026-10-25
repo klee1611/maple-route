@@ -153,14 +153,15 @@ def normalize(question: str) -> str:
     return re.sub(r"\s+", " ", question.strip().lower())
 
 
-def _cache_key(question: str) -> str:
-    return "answer:" + _hash(normalize(question))
+def _cache_key(question: str, lang: str = "en") -> str:
+    # One answer per language. English keeps the original key format, so existing entries stay valid.
+    return "answer:" + ("" if lang == "en" else f"{lang}:") + _hash(normalize(question))
 
 
-async def cached_answer(question: str) -> dict | None:
-    raw = await store.get(_cache_key(question))
+async def cached_answer(question: str, lang: str = "en") -> dict | None:
+    raw = await store.get(_cache_key(question, lang))
     return json.loads(raw) if raw else None
 
 
-async def cache_answer(question: str, answer: dict) -> None:
-    await store.set(_cache_key(question), json.dumps(answer), ttl_s=settings.cache_ttl_hours * 3600)
+async def cache_answer(question: str, lang: str, answer: dict) -> None:
+    await store.set(_cache_key(question, lang), json.dumps(answer), ttl_s=settings.cache_ttl_hours * 3600)

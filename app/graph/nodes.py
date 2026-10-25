@@ -14,13 +14,11 @@ from app import prompts
 from app.errors import AppError, QuotaExhausted, UpstreamBusy
 from app.graph import kb
 from app.graph.state import AgentState, Claim, Conflict, DraftUnit
+from app.i18n import LANGUAGE_NAMES, t
 from app.llm import Role, get_model
 
 MAX_REVISIONS = 2
-DISCLAIMER = (
-    "This is information from official sources, not legal advice. For your specific "
-    "case, talk to a licensed immigration consultant (RCIC) or lawyer."
-)
+DISCLAIMER = t("disclaimer")
 
 
 _MAX_WAIT_S = 30.0  # inside Vercel's 300 s; the timeline shows the wait
@@ -192,6 +190,7 @@ async def synthesizer(state: AgentState) -> dict:
     findings = _usable_findings(state)
     payload = {
         "question": state["question"], "profile": state.get("profile", {}),
+        "language": LANGUAGE_NAMES[state.get("lang", "en")],
         "findings": [{"id": c["id"], "text": c["text"],
                       **({"former_rule": True} if c["note"] == FORMER_RULE else {})} for c in findings],
     }
@@ -313,13 +312,11 @@ def route_after_orchestrator(state: AgentState) -> Literal["policy_agent", "fina
 
 # --- finalize -----------------------------------------------------------------
 
-NOT_COVERED = (
-    "I can't answer this from the sources I use. They cover Canadian work permits and "
-    "permanent residence pathways for tech workers, mainly in Ontario."
-)
+NOT_COVERED = t("not_covered")
 
 
 def finalize(state: AgentState) -> dict:
+    lang = state.get("lang", "en")
     claims = state.get("claims", [])
     status = {c["id"]: c["status"] for c in claims}
     keep = {i for i, s in status.items() if s in ("supported", "conflict")}
@@ -344,13 +341,53 @@ def finalize(state: AgentState) -> dict:
         lines.append(unit["text"] + (" " + "".join(dict.fromkeys(marks)) if marks else ""))
 
     if not lines:
-        lines = [NOT_COVERED]
+        lines = [t("not_covered", lang)]
 
     # One callout per old statement; the latest verdict wins.
     conflicts = list({c["old"]["text"]: c for c in state.get("conflicts", [])}.values())
     return {"final_answer": {
         "text": "\n\n".join(lines), "sources": sources,
         "claims": [c for c in claims if c["status"] != "unsupported" or c["id"].startswith("p")],
-        "conflicts": conflicts, "disclaimer": DISCLAIMER,
+        "conflicts": conflicts, "disclaimer": t("disclaimer", lang),
         "revisions": state.get("revision_count", 0),
     }}
+
+
+# --- localize -----------------------------------------------------------------
+
+class Translation(BaseModel):
+    id: str
+    text: str
+
+
+class TranslateOut(BaseModel):
+    texts: list[Translation]
+
+
+async def localize(state: AgentState) -> dict:
+    """The synthesizer already wrote the answer in the page language; the Changed callouts quote
+    English findings and verifier notes, so translate those. On any failure they stay in English."""
+    lang = state.get("lang", "en")
+    answer = state["final_answer"]
+    # The same finding can be the "now" side of several callouts; translate it once.
+    claims = list({id(x): x for c in answer["conflicts"] for x in (c["old"], c["current"]) if x}.values())
+    if lang == "en" or not claims:
+        return {}
+    originals: dict[str, str] = {}
+    for n, claim in enumerate(claims):
+        originals[f"t{n}"] = claim["text"]
+        if claim["note"] and claim["note"] != FORMER_RULE:
+            originals[f"n{n}"] = claim["note"]
+    try:
+        out = await _structured("synthesizer", "translate", TranslateOut,
+                                {"language": LANGUAGE_NAMES[lang], "texts": originals})
+    except Exception:  # noqa: BLE001 — an English callout beats losing the whole answer
+        return {}
+    done = {tr.id: tr.text for tr in out.texts if tr.id in originals and tr.text.strip()}
+    translated = {
+        id(claim): {**claim, "text": done.get(f"t{n}", claim["text"]), "note": done.get(f"n{n}", claim["note"])}
+        for n, claim in enumerate(claims)
+    }
+    conflicts = [{"old": translated[id(c["old"])], "current": c["current"] and translated[id(c["current"])]}
+                 for c in answer["conflicts"]]
+    return {"final_answer": {**answer, "conflicts": conflicts}}

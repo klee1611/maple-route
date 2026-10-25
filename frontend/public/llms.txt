@@ -7,6 +7,7 @@
 - [Ask a question](https://maple-route.vercel.app/): describe your situation and get the pathways that may apply, with sources.
 - [How it works](https://maple-route.vercel.app/about): the agents, the Knowledge Base, how sources are checked, and limitations.
 - [Privacy](https://maple-route.vercel.app/privacy): what is stored (no conversations or accounts).
+- [Traditional Chinese (繁體中文)](https://maple-route.vercel.app/zh-TW) and [Simplified Chinese (简体中文)](https://maple-route.vercel.app/zh-CN): the same pages; answers are written in that language from the same English official sources.
 
 ## Topics covered
 

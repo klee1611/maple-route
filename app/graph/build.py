@@ -13,6 +13,7 @@ def build_graph():
     g.add_node("synthesizer", nodes.synthesizer)
     g.add_node("verifier", nodes.verifier)
     g.add_node("finalize", nodes.finalize)
+    g.add_node("localize", nodes.localize)
     # Phase E: employer_agent joins here, in parallel with policy_agent.
 
     g.add_edge(START, "orchestrator")
@@ -20,7 +21,8 @@ def build_graph():
     g.add_edge("policy_agent", "synthesizer")
     g.add_edge("synthesizer", "verifier")
     g.add_conditional_edges("verifier", nodes.route_after_verifier)
-    g.add_edge("finalize", END)
+    g.add_edge("finalize", "localize")
+    g.add_edge("localize", END)
     return g.compile()
 
 

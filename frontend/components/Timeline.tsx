@@ -1,13 +1,8 @@
 import type { Step } from "@/lib/api";
+import type { Dictionary } from "@/lib/dictionaries/en";
+import { useI18n } from "./I18n";
 
 export const AGENTS = ["orchestrator", "policy_agent", "synthesizer", "verifier"] as const;
-
-const LABELS: Record<string, string> = {
-  orchestrator: "Understanding your situation",
-  policy_agent: "Checking current rules",
-  synthesizer: "Writing the answer",
-  verifier: "Verifying sources",
-};
 
 export type TimelineState = {
   steps: Record<string, Step | undefined>;
@@ -36,16 +31,17 @@ function Icon({ step }: { step: Step | undefined }) {
   return <span aria-hidden className="text-ink">◐</span>;
 }
 
-function statusWord(step: Step | undefined): string {
-  if (!step) return "Not started";
-  if (step.status === "finished") return "Done";
-  if (step.status === "waiting") return "Waiting";
-  return "In progress";
+function statusWord(t: Dictionary["timeline"], step: Step | undefined): string {
+  if (!step) return t.notStarted;
+  if (step.status === "finished") return t.done;
+  if (step.status === "waiting") return t.waiting;
+  return t.inProgress;
 }
 
 export function Timeline({ state }: { state: TimelineState }) {
+  const t = useI18n().dict.timeline;
   return (
-    <section aria-label="Progress" className="border-y border-rule py-4">
+    <section aria-label={t.progress} className="border-y border-rule py-4">
       <ol className="space-y-1.5">
         {AGENTS.map((agent) => {
           const step = state.steps[agent];
@@ -56,8 +52,8 @@ export function Timeline({ state }: { state: TimelineState }) {
                 <Icon step={step} />
               </span>
               <span className={step ? "text-ink" : "text-graphite"}>
-                {LABELS[agent]}
-                <span className="sr-only">: {statusWord(step)}</span>
+                {t[agent]}
+                <span className="sr-only">: {statusWord(t, step)}</span>
                 {detail && <span className="reveal text-graphite"> · {detail}</span>}
               </span>
             </li>
@@ -67,7 +63,8 @@ export function Timeline({ state }: { state: TimelineState }) {
       {state.rechecks > 0 && (
         <p className="reveal mt-3 flex gap-3 text-editor">
           <span aria-hidden className="w-5 shrink-0 text-center font-mono">↻</span>
-          Found a rule that changed — rechecking{state.rechecks > 1 ? ` (${state.rechecks})` : ""}
+          {state.steps.verifier?.status === "finished" ? t.rechecked : t.recheck}
+          {state.rechecks > 1 ? ` (${state.rechecks})` : ""}
         </p>
       )}
     </section>

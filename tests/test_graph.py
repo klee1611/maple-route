@@ -106,6 +106,40 @@ def test_out_of_scope_skips_research():
     assert answer["text"] == nodes.NOT_COVERED
 
 
+def test_finalize_uses_page_language_for_fixed_text():
+    answer = nodes.finalize({"in_scope": False, "lang": "zh-TW"})["final_answer"]
+    assert answer["text"].startswith("我無法")
+    assert "RCIC" in answer["disclaimer"] and "法律建議" in answer["disclaimer"]
+
+
+async def test_localize_translates_callouts_and_falls_back_to_english(monkeypatch):
+    claim = lambda i, text, note: {"id": i, "text": text, "source_id": "e", "source_title": None,
+                                   "source_url": None, "source_date": None, "status": "outdated", "note": note}
+    current = claim("c2", "Now rule", None)
+    answer = {"text": "x", "conflicts": [{"old": claim("c1", "Old rule", "Changed in 2024."), "current": current},
+                                         {"old": claim("p1", "User rule", nodes.FORMER_RULE), "current": current}]}
+    seen = {}
+
+    async def translate(role, prompt, schema, payload):
+        seen.update(payload["texts"])
+        return schema(texts=[{"id": k, "text": f"譯:{v}"} for k, v in payload["texts"].items()])
+
+    monkeypatch.setattr(nodes, "_structured", translate)
+    assert await nodes.localize({"lang": "en", "final_answer": answer}) == {}
+    out = (await nodes.localize({"lang": "zh-TW", "final_answer": answer}))["final_answer"]
+    assert len(seen) == 4  # the shared "now" finding once; the internal former-rule marker not at all
+    first, second = out["conflicts"]
+    assert (first["old"]["text"], first["old"]["note"]) == ("譯:Old rule", "譯:Changed in 2024.")
+    assert second["old"]["note"] == nodes.FORMER_RULE
+    assert first["current"]["text"] == second["current"]["text"] == "譯:Now rule"
+
+    async def broken(*_args):
+        raise ValueError("bad output")
+
+    monkeypatch.setattr(nodes, "_structured", broken)
+    assert await nodes.localize({"lang": "zh-CN", "final_answer": answer}) == {}
+
+
 def test_citations_parse_real_format_and_trim_keeps_sources():
     from app.graph import kb
 

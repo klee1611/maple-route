@@ -1,5 +1,7 @@
 // Client for the Maple Route API (CLAUDE.md §6).
 
+import type { Locale } from "./i18n";
+
 export type ClaimStatus = "unverified" | "supported" | "unsupported" | "outdated" | "conflict";
 
 export type Claim = {
@@ -53,13 +55,18 @@ export async function getQuota(): Promise<Quota | null> {
 }
 
 /** POST a question and dispatch Server-Sent Events as they arrive. */
-export async function ask(question: string, turnstileToken: string, handlers: AskHandlers): Promise<void> {
+export async function ask(
+  question: string,
+  turnstileToken: string,
+  lang: Locale,
+  handlers: AskHandlers,
+): Promise<void> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/api/ask`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ question, turnstileToken }),
+      body: JSON.stringify({ question, turnstileToken, lang }),
     });
   } catch {
     handlers.onError("network", "");
