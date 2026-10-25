@@ -1,78 +1,104 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { Atkinson_Hyperlegible_Next, IBM_Plex_Mono } from "next/font/google";
-import "./globals.css";
+import "../globals.css";
 import { Analytics } from "@/components/Analytics";
-import { HOME_TITLE, REPO_URL, SITE_NAME, SITE_URL } from "@/lib/site";
+import { I18nProvider } from "@/components/I18n";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { getDictionary } from "@/lib/dictionaries";
+import { LOCALES, isLocale, localePath } from "@/lib/i18n";
+import { REPO_URL, SITE_NAME, SITE_URL } from "@/lib/site";
 
 // Reading text: designed for legibility (look-alike characters are distinct).
 const reading = Atkinson_Hyperlegible_Next({ variable: "--font-reading", subsets: ["latin"] });
 // Records: dates, citation numbers, source sections.
 const record = IBM_Plex_Mono({ variable: "--font-record", subsets: ["latin"], weight: ["400", "500"] });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
-  title: { default: HOME_TITLE, template: `%s · ${SITE_NAME}` },
-  applicationName: SITE_NAME,
-};
+// Every language is built ahead of time; any other first segment is not a language (see proxy.ts).
+export const dynamicParams = false;
+
+export function generateStaticParams() {
+  return LOCALES.map((lang) => ({ lang }));
+}
+
+export async function generateMetadata({ params }: LayoutProps<"/[lang]">): Promise<Metadata> {
+  const { lang } = await params;
+  if (!isLocale(lang)) notFound();
+  return {
+    metadataBase: new URL(SITE_URL),
+    title: { default: getDictionary(lang).meta.homeTitle, template: `%s · ${SITE_NAME}` },
+    applicationName: SITE_NAME,
+  };
+}
 
 // Describes the tool to search engines. No FAQ or HowTo markup: Google no longer shows those for sites like this.
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "WebSite",
-      "@id": `${SITE_URL}/#website`,
-      url: SITE_URL,
-      name: SITE_NAME,
-      inLanguage: "en-CA",
-    },
-    {
-      "@type": "WebApplication",
-      "@id": `${SITE_URL}/#app`,
-      url: SITE_URL,
-      name: SITE_NAME,
-      description:
-        "Answers questions about Canadian work permits and permanent residence for tech workers, citing official sources for every statement and flagging rules that have changed. Information, not legal advice.",
-      applicationCategory: "ReferenceApplication",
-      operatingSystem: "Any",
-      isAccessibleForFree: true,
-      offers: { "@type": "Offer", price: "0", priceCurrency: "CAD" },
-      inLanguage: "en-CA",
-      sameAs: [REPO_URL],
-    },
-  ],
-};
+function jsonLd(lang: string, description: string, url: string) {
+  const inLanguage = lang === "en" ? "en-CA" : lang;
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${SITE_URL}/#website`,
+        url: SITE_URL,
+        name: SITE_NAME,
+        inLanguage: ["en-CA", "zh-TW", "zh-CN"],
+      },
+      {
+        "@type": "WebApplication",
+        "@id": `${url}#app`,
+        url,
+        name: SITE_NAME,
+        description,
+        applicationCategory: "ReferenceApplication",
+        operatingSystem: "Any",
+        isAccessibleForFree: true,
+        offers: { "@type": "Offer", price: "0", priceCurrency: "CAD" },
+        inLanguage,
+        sameAs: [REPO_URL],
+      },
+    ],
+  };
+}
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children, params }: LayoutProps<"/[lang]">) {
+  const { lang } = await params;
+  if (!isLocale(lang)) notFound();
+  const dict = getDictionary(lang);
+  const home = localePath(lang, "/");
+  const structured = jsonLd(lang, dict.meta.appDescription, SITE_URL + (home === "/" ? "/" : home));
   return (
-    <html lang="en" className={`${reading.variable} ${record.variable}`}>
+    <html lang={lang} className={`${reading.variable} ${record.variable}`}>
       <body className="min-h-dvh bg-paper text-ink antialiased">
         <script
           type="application/ld+json"
           // Static object defined above; escape "<" so the JSON can never close the script tag.
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structured).replace(/</g, "\\u003c") }}
         />
+        <I18nProvider locale={lang} dict={dict}>
         <div className="mx-auto flex min-h-dvh max-w-3xl flex-col px-4 sm:px-6">
-          <header className="flex items-baseline justify-between gap-4 border-b border-rule py-5">
-            <Link href="/" className="text-xl font-semibold tracking-tight text-ink no-underline">
-              Maple Route
-            </Link>
-            <nav aria-label="Site" className="flex gap-5 text-base">
-              <Link href="/about" className="text-graphite underline hover:text-ink">
-                About
+          <header className="border-b border-rule py-5">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-x-4">
+              <Link href={home} className="text-lg font-semibold tracking-tight text-ink no-underline sm:text-xl">
+                Maple Route
               </Link>
-              <Link href="/privacy" className="text-graphite underline hover:text-ink">
-                Privacy
-              </Link>
-            </nav>
+              <div className="flex items-center gap-3 sm:gap-5">
+                <nav aria-label={dict.nav.site} className="flex gap-3 text-base sm:gap-5">
+                  <Link href={localePath(lang, "/about")} className="py-2 text-graphite underline hover:text-ink">
+                    {dict.nav.about}
+                  </Link>
+                  <Link href={localePath(lang, "/privacy")} className="py-2 text-graphite underline hover:text-ink">
+                    {dict.nav.privacy}
+                  </Link>
+                </nav>
+                <LanguageSwitcher />
+              </div>
+            </div>
           </header>
           <main className="flex-1 py-8">{children}</main>
           <footer className="flex flex-col gap-4 border-t border-rule py-6 text-sm text-graphite sm:flex-row sm:items-center sm:justify-between">
-            <p className="max-w-prose">
-              A free, independent project. Not affiliated with the Government of Canada or any
-              government agency. Information, not legal advice.
-            </p>
+            <p className="max-w-prose">{dict.footer.notice}</p>
             {/* A plain link, not Buy Me a Coffee's widget: no third-party script or tracking. */}
             <a
               href="https://www.buymeacoffee.com/klee1611"
@@ -85,12 +111,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
                 <path d="M6 2v2M10 2v2M14 2v2" />
               </svg>
-              Buy me a coffee
-              <span className="sr-only">(opens in a new tab)</span>
+              {dict.footer.coffee}
+              <span className="sr-only">{dict.footer.newTab}</span>
             </a>
           </footer>
         </div>
         <Analytics />
+        </I18nProvider>
       </body>
     </html>
   );

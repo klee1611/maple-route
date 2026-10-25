@@ -39,10 +39,11 @@ def api(monkeypatch):
     return graph
 
 
-async def ask(question: str, ip: str = "1.2.3.4") -> list[tuple[str, dict]]:
+async def ask(question: str, ip: str = "1.2.3.4", lang: str | None = None) -> list[tuple[str, dict]]:
     transport = httpx.ASGITransport(app=main.app)
+    body = {"question": question, **({"lang": lang} if lang else {})}
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
-        resp = await client.post("/api/ask", json={"question": question}, headers={"x-forwarded-for": ip})
+        resp = await client.post("/api/ask", json=body, headers={"x-forwarded-for": ip})
     events, name = [], None
     for line in resp.text.splitlines():
         if line.startswith("event: "):
@@ -65,6 +66,27 @@ async def test_cache_hit_skips_llm_and_budget(api):
     assert api.calls == 1
     assert events[0][1]["cached"] is True
     assert events[-1][1] == {"remainingToday": 1}
+
+
+async def test_cache_is_per_language(api):
+    await ask("same question")
+    events = await ask("same question", lang="zh-TW")
+    assert api.calls == 2
+    assert "cached" not in events[-2][1]
+
+
+async def test_steps_and_errors_follow_the_language(api):
+    events = await ask("q1", lang="zh-CN")
+    assert events[0][1]["summary"] == "了解你的情况"
+    assert (await ask("   ", lang="zh-TW"))[0][1]["message"] == "請先輸入問題。"
+
+
+async def test_unknown_language_is_rejected(api):
+    transport = httpx.ASGITransport(app=main.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
+        resp = await client.post("/api/ask", json={"question": "q", "lang": "fr"})
+    assert resp.status_code == 422
+    assert api.calls == 0
 
 
 async def test_daily_budget_exhausted_without_calling_llm(api):

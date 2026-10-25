@@ -2,53 +2,40 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ask, getQuota, type Answer, type ErrorCode, type Quota } from "@/lib/api";
+import type { Dictionary } from "@/lib/dictionaries/en";
+import { fmt, type Locale } from "@/lib/i18n";
 import { AnswerView } from "./AnswerView";
+import { useI18n } from "./I18n";
 import { Timeline, applyStep, emptyTimeline, type TimelineState } from "./Timeline";
 import { Turnstile, type TurnstileHandle } from "./Turnstile";
 
 const MAX_CHARS = 1000;
 
-const EXAMPLES = [
-  {
-    label: "PGWP after two years?",
-    question: "I graduated from a Canadian college program two years ago. Can I still get a post-graduation work permit?",
-  },
-  {
-    label: "Spouse open work permit?",
-    question: "Does my spouse get an open work permit if I come to Canada on a work permit?",
-  },
-  { label: "Express Entry job offer points?", question: "Do I get extra Express Entry points for a job offer?" },
-  {
-    label: "OINP tech stream still open?",
-    question:
-      "I read that tech workers in Ontario can get invited through the OINP Express Entry Human Capital Priorities stream. Can I still apply that way?",
-  },
-];
-
-function formatReset(resetsAt?: string): string {
-  if (!resetsAt) return "tomorrow";
+function formatReset(locale: Locale, tomorrow: string, resetsAt?: string): string {
+  if (!resetsAt) return tomorrow;
   const d = new Date(resetsAt);
-  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(d);
+  return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(d);
 }
 
-function errorText(code: ErrorCode, message: string, resetsAt?: string): string {
+function errorText(dict: Dictionary, code: ErrorCode, message: string, resetTime: string): string {
   switch (code) {
     case "quota_exhausted":
-      return `The free daily limit has been reached. Answers are available again at ${formatReset(resetsAt)}.`;
+      return fmt(dict.errors.quota_exhausted, { time: resetTime });
+    // The server explains these in the page's language (it knows which check failed).
     case "rate_limited":
-      return message || "You've asked several questions recently. Please try again in an hour or tomorrow.";
-    case "upstream_busy":
-      return "The free AI service is busy right now. Please wait a minute, then try again.";
     case "invalid_input":
-      return message || "Please check your question and try again.";
+      return message || dict.errors[code];
+    case "upstream_busy":
     case "network":
-      return "We couldn't reach the server. Check your connection and try again.";
+      return dict.errors[code];
     default:
-      return "Something went wrong on our side. Please try again.";
+      return dict.errors.internal;
   }
 }
 
 export function Checker() {
+  const { locale, dict } = useI18n();
+  const t = dict.home;
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [timeline, setTimeline] = useState<TimelineState>(emptyTimeline);
@@ -77,12 +64,13 @@ export function Checker() {
   }, []);
 
   const exhausted = quota?.remainingToday === 0;
+  const resetTime = formatReset(locale, t.tomorrow, quota?.resetsAt);
   const tooLong = question.length > MAX_CHARS;
   const canSubmit = !busy && !exhausted && !tooLong && question.trim().length > 0 && pending === null;
 
-  async function submit(q: string, t: string | null = token) {
+  async function submit(q: string, tok: string | null = token) {
     if (busy || exhausted) return;
-    if (t === null) {
+    if (tok === null) {
       pendingRef.current = q;
       setPending(q);
       return;
@@ -93,12 +81,12 @@ export function Checker() {
     setError(null);
     setTimeline(emptyTimeline);
     resultRef.current?.focus();
-    await ask(q.trim(), t, {
+    await ask(q.trim(), tok, locale, {
       onStep: (step) => setTimeline((prev) => applyStep(prev, step)),
       onClaim: () => {},
       onAnswer: setAnswer,
       onQuota: (next) => setQuota((prev) => ({ ...prev, ...next })),
-      onError: (code, message) => setError(errorText(code, message, quota?.resetsAt)),
+      onError: (code, message) => setError(errorText(dict, code, message, resetTime)),
     });
     setBusy(false);
     turnstile.current?.reset(); // tokens are single-use
@@ -113,10 +101,10 @@ export function Checker() {
   return (
     <div>
       <h1 className="max-w-[30ch] text-3xl leading-tight font-semibold sm:text-4xl">
-        Check which Canadian work permit and PR rules apply to you — and whether what you read is still true.
+        {t.heading}
       </h1>
       <p className="mt-3 max-w-[68ch] text-graphite">
-        For tech workers in or coming to Ontario. Every statement links to its official source.
+        {t.intro}
       </p>
 
       <form
@@ -127,7 +115,7 @@ export function Checker() {
         }}
       >
         <label htmlFor="question" className="block font-semibold">
-          Your situation or question
+          {t.label}
         </label>
         <textarea
           id="question"
@@ -136,7 +124,7 @@ export function Checker() {
           rows={4}
           disabled={exhausted}
           aria-describedby="question-count quota-note"
-          placeholder="For example: I'm a software developer in Toronto with a job offer. Which work permits can I get?"
+          placeholder={t.placeholder}
           className="mt-2 block w-full resize-y rounded-sm border border-rule bg-field px-3 py-2.5 text-ink placeholder:text-graphite disabled:opacity-60"
         />
         <p
@@ -145,15 +133,15 @@ export function Checker() {
           aria-live={tooLong ? "polite" : "off"}
         >
           {question.length} / {MAX_CHARS}
-          {tooLong && " — please shorten your question"}
+          {tooLong && t.tooLong}
         </p>
 
         <div className="mt-2">
           <p className="text-base text-graphite" id="examples-label">
-            Or try an example:
+            {t.examplesLabel}
           </p>
           <ul aria-labelledby="examples-label" className="mt-2 flex flex-wrap gap-2">
-            {EXAMPLES.map((ex) => (
+            {t.examples.map((ex) => (
               <li key={ex.label}>
                 <button
                   type="button"
@@ -175,19 +163,19 @@ export function Checker() {
           <Turnstile ref={turnstile} onToken={onToken} />
           {pending !== null && (
             <p className="mt-2 text-base text-graphite" role="status">
-              Confirming you’re not a bot — your question will be sent in a moment.
+              {t.confirmingBot}
             </p>
           )}
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
           <p id="quota-note" className="text-base text-graphite">
-            This is a free project with a limited number of answers per day.
+            {t.quotaNote}
             {quota && !exhausted && (
               <>
                 {" "}
                 <span className="text-ink">
-                  {quota.remainingToday} answer{quota.remainingToday === 1 ? "" : "s"} left today.
+                  {fmt(quota.remainingToday === 1 ? t.remainingOne : t.remainingMany, { n: quota.remainingToday })}
                 </span>
               </>
             )}
@@ -195,7 +183,7 @@ export function Checker() {
               <>
                 {" "}
                 <span className="text-ink">
-                  No answers left today. Available again at {formatReset(quota?.resetsAt)}.
+                  {fmt(t.noneLeft, { time: resetTime })}
                 </span>
               </>
             )}
@@ -205,7 +193,7 @@ export function Checker() {
             disabled={!canSubmit}
             className="rounded-sm bg-ink px-5 py-2.5 font-semibold text-paper hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {busy || pending !== null ? "Checking…" : "Check my options"}
+            {busy || pending !== null ? t.checking : t.submit}
           </button>
         </div>
       </form>

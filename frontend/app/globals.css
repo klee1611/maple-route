@@ -11,7 +11,17 @@
   --editor: #2747a3;
   --editor-wash: #e8edfa;
   --field: #ffffff;
+  /* Atkinson Hyperlegible has no Chinese characters; these system fonts fill in for them. */
+  --font-cjk: system-ui;
   color-scheme: light;
+}
+
+:root:lang(zh-TW) {
+  --font-cjk: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui;
+}
+
+:root:lang(zh-CN) {
+  --font-cjk: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -37,8 +47,8 @@
   --color-editor: var(--editor);
   --color-editor-wash: var(--editor-wash);
   --color-field: var(--field);
-  --font-sans: var(--font-reading), system-ui, sans-serif;
-  --font-mono: var(--font-record), ui-monospace, monospace;
+  --font-sans: var(--font-reading), var(--font-cjk), sans-serif;
+  --font-mono: var(--font-record), var(--font-cjk), ui-monospace, monospace;
 }
 
 html {

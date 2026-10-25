@@ -2,6 +2,8 @@
 
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { useSyncExternalStore } from "react";
+import { localePath } from "@/lib/i18n";
+import { useI18n } from "./I18n";
 
 /**
  * Google Analytics, loaded only after the visitor allows it.
@@ -64,6 +66,8 @@ export function saveAnalyticsChoice(choice: Choice) {
 export const analyticsEnabled = GA_ID !== null;
 
 export function Analytics() {
+  const { locale, dict } = useI18n();
+  const t = dict.analytics;
   const choice = useAnalyticsChoice();
   if (!GA_ID || choice === "unknown" || choice === "denied") return null;
 
@@ -71,14 +75,14 @@ export function Analytics() {
 
   return (
     <section
-      aria-label="Analytics choice"
+      aria-label={t.region}
       className="sticky bottom-0 z-10 border-t border-rule bg-field px-4 py-4 sm:px-6"
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-ink">
-          Can we use Google Analytics to count visits? It sets cookies. Your questions are never sent to Google.{" "}
-          <a href="/privacy" className="underline">
-            Privacy
+          {t.prompt}{" "}
+          <a href={localePath(locale, "/privacy")} className="underline">
+            {t.privacy}
           </a>
         </p>
         <div className="flex shrink-0 gap-2">
@@ -87,14 +91,14 @@ export function Analytics() {
             onClick={() => saveAnalyticsChoice("granted")}
             className="rounded-sm bg-ink px-4 py-2 text-sm font-semibold text-paper hover:opacity-90"
           >
-            Allow analytics
+            {t.allow}
           </button>
           <button
             type="button"
             onClick={() => saveAnalyticsChoice("denied")}
             className="rounded-sm border border-rule px-4 py-2 text-sm text-ink hover:border-ink"
           >
-            No thanks
+            {t.decline}
           </button>
         </div>
       </div>
@@ -104,19 +108,20 @@ export function Analytics() {
 
 /** Lets a visitor change their answer later (used on /privacy). */
 export function AnalyticsSettings() {
+  const t = useI18n().dict.analytics;
   const choice = useAnalyticsChoice();
   if (!analyticsEnabled || choice === "unknown") return null;
-  const label = choice === "granted" ? "allowed" : choice === "denied" ? "declined" : "not chosen yet";
+  const label = choice === "granted" ? t.allowed : choice === "denied" ? t.declined : t.notChosen;
   return (
     <p>
-      Your current choice: <strong>{label}</strong>.{" "}
+      {t.current} <strong>{label}</strong>{t.period}{" "}
       {choice === "granted" ? (
         <button type="button" onClick={() => saveAnalyticsChoice("denied")} className="underline">
-          Turn analytics off
+          {t.turnOff}
         </button>
       ) : (
         <button type="button" onClick={() => saveAnalyticsChoice("granted")} className="underline">
-          Allow analytics
+          {t.allow}
         </button>
       )}
     </p>

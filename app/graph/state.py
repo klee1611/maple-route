@@ -33,6 +33,7 @@ class DraftUnit(TypedDict):
 
 class AgentState(TypedDict, total=False):
     question: str
+    lang: str                           # page language for user-facing text ("en", "zh-TW", "zh-CN")
     profile: dict
     premises: list[Claim]
     in_scope: bool
