@@ -72,6 +72,28 @@ async def test_verifier_rejects_outdated_claim_and_answer_is_corrected(fake_worl
         "Old rules | x.invalid § Old rules › Captured: June 1, 2023", None, "June 1, 2023")
 
 
+
+async def test_contradicted_premise_gets_a_callout_even_without_contradicted_by(fake_world, monkeypatch):
+    base = nodes._structured
+
+    async def structured(role, prompt, schema, payload):
+        if prompt == "orchestrator":
+            return schema(profile={}, premises=["Any program qualifies"], in_scope=True, plan=[])
+        if prompt == "verifier":
+            out = await base(role, prompt, schema, payload)
+            # The model sometimes says "contradicted" but names no finding.
+            out.premises = [nodes.PremiseVerdict(id="p1", status="contradicted", note="Now limited.",
+                                                 contradicted_by=[], matches_older=[])]
+            return out
+        return await base(role, prompt, schema, payload)
+
+    monkeypatch.setattr(nodes, "_structured", structured)
+    answer = (await build_graph().ainvoke({"question": "q"}))["final_answer"]
+    premise = [c for c in answer["conflicts"] if c["old"]["id"] == "p1"]
+    assert len(premise) == 1
+    assert premise[0]["old"]["note"] == "Now limited."
+    assert premise[0]["current"] is None  # the callout says current sources no longer support it
+
 async def test_revisions_stop_at_two(fake_world, monkeypatch):
     async def always_archive(_kb, paths):
         return {p: ENTRIES["wp/archive"] for p in paths}

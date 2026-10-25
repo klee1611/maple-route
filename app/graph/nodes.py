@@ -279,11 +279,12 @@ async def verifier(state: AgentState) -> dict:
         status = {"supported": "supported", "not_covered": "unsupported",
                   "contradicted": "outdated" if older else "unsupported"}[v.status]
         checked.append(c := Claim(**{**premise, "status": status, "note": v.note}))
-        current = first(v.contradicted_by)
-        if v.status == "contradicted" and current:
-            # Show the source for the former rule when there is one, else "what you read".
+        if v.status == "contradicted":
+            # Show the source for the former rule when there is one, else "what you read". The model
+            # sometimes leaves contradicted_by empty; the callout then says current sources no longer
+            # support it, rather than the change going unmentioned.
             old = Claim(**{**older, "status": "outdated", "note": v.note}) if older else c
-            conflicts.append(Conflict(old=old, current=current))
+            conflicts.append(Conflict(old=old, current=first(v.contradicted_by)))
 
     finding_verdicts = {v.id: v for v in out.findings}
     for claim in used:
