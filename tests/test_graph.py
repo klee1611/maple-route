@@ -72,6 +72,28 @@ async def test_verifier_rejects_outdated_claim_and_answer_is_corrected(fake_worl
         "Old rules | x.invalid § Old rules › Captured: June 1, 2023", None, "June 1, 2023")
 
 
+
+async def test_contradicted_premise_gets_a_callout_even_without_contradicted_by(fake_world, monkeypatch):
+    base = nodes._structured
+
+    async def structured(role, prompt, schema, payload):
+        if prompt == "orchestrator":
+            return schema(profile={}, premises=["Any program qualifies"], in_scope=True, plan=[])
+        if prompt == "verifier":
+            out = await base(role, prompt, schema, payload)
+            # The model sometimes says "contradicted" but names no finding.
+            out.premises = [nodes.PremiseVerdict(id="p1", status="contradicted", note="Now limited.",
+                                                 contradicted_by=[], matches_older=[])]
+            return out
+        return await base(role, prompt, schema, payload)
+
+    monkeypatch.setattr(nodes, "_structured", structured)
+    answer = (await build_graph().ainvoke({"question": "q"}))["final_answer"]
+    premise = [c for c in answer["conflicts"] if c["old"]["id"] == "p1"]
+    assert len(premise) == 1
+    assert premise[0]["old"]["note"] == "Now limited."
+    assert premise[0]["current"] is None  # the callout says current sources no longer support it
+
 async def test_revisions_stop_at_two(fake_world, monkeypatch):
     async def always_archive(_kb, paths):
         return {p: ENTRIES["wp/archive"] for p in paths}
@@ -147,9 +169,37 @@ def test_citations_parse_real_format_and_trim_keeps_sources():
              "1. Page A | ontario.ca § Updates › April 23, 2026 › Draw — Web\n"
              "2. Page B - Canada.ca — Web · https://www.canada.ca/b.html\n")
     assert kb.citations(entry) == {
-        1: {"title": "Page A | ontario.ca § Updates › April 23, 2026 › Draw", "url": None, "date": "April 23, 2026"},
-        2: {"title": "Page B - Canada.ca", "url": "https://www.canada.ca/b.html", "date": None},
+        "1": {"title": "Page A | ontario.ca § Updates › April 23, 2026 › Draw", "url": None, "date": "April 23, 2026"},
+        "2": {"title": "Page B - Canada.ca", "url": "https://www.canada.ca/b.html", "date": None},
     }
     trimmed = kb.trim(entry)
     assert len(trimmed) <= kb.MAX_ENTRY_CHARS + 50
     assert kb.citations(trimmed) == kb.citations(entry)
+
+
+def test_citations_parse_footnotes_and_trim_keeps_the_ones_still_cited():
+    from app.graph import kb
+
+    page = "Express Entry: Comprehensive Ranking System (CRS) criteria - Canada.ca"
+    url = "https://www.canada.ca/crs.html"
+    # Definitions can follow the section that uses them, not only the end of the entry.
+    entry = ("# Express Entry\n\nJob offers no longer add points [^early].\n\n" + "y" * 9000
+             + "\n\nLate fact [^late].\n\n"
+             + f'[^early]: "We no longer give points for job offers (as of March 25, 2025)" ({page}, {url}#:~:text=We)\n'
+             + f'[^late]: "{"q" * 400}" ({page}, {url}#:~:text=q)\n')
+    cite = {"title": page, "url": url, "date": None}
+    assert kb.citations(entry) == {"early": cite, "late": cite}
+    trimmed = kb.trim(entry)
+    assert len(trimmed) <= kb.MAX_ENTRY_CHARS
+    assert kb.citations(trimmed) == {"early": cite}  # [^late] was cut with the text that used it
+    assert "We no longer give points" in trimmed  # the quote stays for the verifier
+
+
+def test_citations_page_level_source_survives_trim():
+    from app.graph import kb
+
+    url = "https://www.canada.ca/pgwp.html"
+    entry = "# Post-Graduation Work Permit (PGWP)\n\n" + "z" * 9000 + f"\n\n---\n**Source:** {url}\n"
+    expected = {"source": {"title": "Post-Graduation Work Permit (PGWP)", "url": url, "date": None}}
+    assert kb.citations(entry) == expected
+    assert kb.citations(kb.trim(entry)) == expected
